@@ -15,31 +15,36 @@ app.post(
     "/razorpay-webhook",
     express.raw({ type: "application/json" }),
     (req, res) => {
-        const payload = JSON.parse(req.body.toString());
-
-        // Accept only successful payments
-        if (
-            payload.event === "order.paid" &&
-            payload.payload?.payment?.entity?.status === "captured"
-        ) {
+        try {
+            const payload = JSON.parse(req.body.toString());
             const payment = payload.payload.payment.entity;
+
+            // ✅ DEFINE customerName PROPERLY
+            const customerName =
+                payment.notes?.name ||
+                payment.notes?.customer_name ||
+                payment.notes?.customer ||
+                "Guest";
 
             lastPaidBill = {
                 orderId: payment.order_id,
                 paymentId: payment.id,
                 amount: payment.amount / 100,
-                customerName: customerName,
                 method: payment.method.toUpperCase(),
+                customerName: customerName,
                 time: new Date().toLocaleTimeString(),
                 printed: false
             };
 
-            console.log("✅ PAYMENT STORED:", lastPaidBill);
+            console.log("✅ Payment stored:", lastPaidBill);
+            res.status(200).send("OK");
+        } catch (err) {
+            console.error("Webhook error:", err);
+            res.status(400).send("Invalid payload");
         }
-
-        res.status(200).send("OK");
     }
 );
+
 
 /* =========================
    ANDROID FETCH BILL

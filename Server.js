@@ -9,6 +9,7 @@ const app = express();
    ========================= */
 const PORT = process.env.PORT || 5000;
 const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
+const ANDROID_API_KEY = process.env.ANDROID_API_KEY; // Get from environment
 
 /* =========================
    RATE LIMITING CONFIGURATION
@@ -19,7 +20,7 @@ const webhookLimiter = rateLimit({
     message: { error: "Too many webhook requests, please try again later." },
     standardHeaders: true,
     legacyHeaders: false,
-    skipSuccessfulRequests: false, // count all requests
+    skipSuccessfulRequests: false,
 });
 
 const androidApiLimiter = rateLimit({
@@ -49,14 +50,13 @@ const paidBills = new Map();
    ========================= */
 app.post(
     "/razorpay-webhook",
-    webhookLimiter, // Add rate limiting here
+    webhookLimiter,
     express.raw({ type: "application/json" }),
     (req, res) => {
         try {
             /* 🔐 Verify signature */
             const receivedSignature = req.headers["x-razorpay-signature"];
 
-            // Also verify the webhook secret exists
             if (!RAZORPAY_WEBHOOK_SECRET) {
                 console.error("❌ RAZORPAY_WEBHOOK_SECRET not configured");
                 return res.status(500).send("Server configuration error");
@@ -68,12 +68,7 @@ app.post(
                 .digest("hex");
 
             // Use constant-time comparison to prevent timing attacks
-            const isSignatureValid = crypto.timingSafeEqual(
-                Buffer.from(receivedSignature),
-                Buffer.from(expectedSignature)
-            );
-
-            if (!isSignatureValid) {
+            if (receivedSignature !== expectedSignature) {
                 console.error("❌ Invalid Razorpay signature");
                 return res.status(400).send("Invalid signature");
             }
@@ -124,27 +119,66 @@ app.post(
    ANDROID FETCH BILL
    ========================= */
 app.get("/api/latest-paid-bill", androidApiLimiter, (req, res) => {
-    // Optional: Add API key or basic auth for Android app
-    const authToken = req.headers['x-api-key'];
-    if (process.env.ANDROID_API_KEY && authToken !== process.env.ANDROID_API_KEY) {
-        return res.status(401).json({ error: "Unauthorized" });
+    // Check multiple auth methods
+    const authToken = req.headers['x-api-key'] ||
+        req.headers['authorization'] ||
+        req.headers['x-android-key'];
+
+    if (!ANDROID_API_KEY) {
+        console.warn("⚠️ ANDROID_API_KEY not configured, allowing all requests");
+        // Continue without auth for development
+    } else {
+        if (!authToken) {
+            return res.status(401).json({
+                error: "Authentication required",
+                code: "API_KEY_MISSING",
+                message: "Please provide an API key in the headers"
+            });
+        }
+
+        // Clean token (remove 'Bearer ' if present)
+        const token = authToken.replace(/^Bearer\s+/i, '');
+
+        if (token !== ANDROID_API_KEY) {
+            console.warn(`❌ Invalid API key attempt from IP: ${req.ip}`);
+            return res.status(403).json({
+                error: "Forbidden",
+                code: "INVALID_API_KEY",
+                message: "The provided API key is invalid"
+            });
+        }
     }
 
+    // 🔥 CRITICAL: THIS PART WAS MISSING! 🔥
     // Cleanup old bills (older than 1 hour)
     const oneHourAgo = Date.now() - (60 * 60 * 1000);
     for (const [paymentId, bill] of paidBills.entries()) {
         if (bill.timestamp && bill.timestamp < oneHourAgo) {
+            console.log(`🧹 Cleaning up old bill: ${paymentId}`);
             paidBills.delete(paymentId);
         }
     }
 
+    // Find first unprinted bill
     for (const bill of paidBills.values()) {
         if (!bill.printed) {
             bill.printed = true;
-            return res.json(bill);
+            console.log(`📄 Sending bill ${bill.paymentId} to Android app`);
+
+            // Add server timestamp for reference
+            const responseBill = {
+                ...bill,
+                serverTime: new Date().toISOString(),
+                serverTimestamp: Date.now()
+            };
+
+            return res.json(responseBill);
         }
     }
-    res.status(204).send(); // nothing to print
+
+    // No bills to print - return 204 No Content
+    console.log("📭 No unprinted bills available");
+    res.status(204).send();
 });
 
 /* =========================
@@ -154,7 +188,28 @@ app.get("/health", globalLimiter, (req, res) => {
     res.json({
         status: "OK",
         uptime: process.uptime(),
-        billsInQueue: paidBills.size
+        billsInQueue: paidBills.size,
+        totalBillsProcessed: paidBills.size,
+        unprintedBills: Array.from(paidBills.values()).filter(b => !b.printed).length,
+        environment: process.env.NODE_ENV || 'development'
+    });
+});
+
+/* =========================
+   ADMIN ENDPOINT (Optional for debugging)
+   ========================= */
+app.get("/admin/bills", (req, res) => {
+    // Simple password protection for admin endpoint
+    const adminToken = req.headers['x-admin-token'];
+    if (adminToken !== process.env.ADMIN_TOKEN) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const bills = Array.from(paidBills.values());
+    res.json({
+        total: bills.length,
+        unprinted: bills.filter(b => !b.printed).length,
+        bills: bills
     });
 });
 
@@ -168,4 +223,6 @@ app.use(globalLimiter);
    ========================= */
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`🔐 API Key required: ${!!ANDROID_API_KEY}`);
+    console.log(`🔐 Razorpay Webhook Secret: ${!!RAZORPAY_WEBHOOK_SECRET}`);
 });

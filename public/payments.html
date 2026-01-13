@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRI KRISHNA GHAR - Payment</title>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .token-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .token-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .token-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+
+        .token-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+
+        .token-number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .token-amount {
+            font-size: 24px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .empty-state {
+            background: white;
+            border-radius: 20px;
+            padding: 60px 40px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .empty-title {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .empty-text {
+            font-size: 16px;
+            color: #666;
+        }
+
+        .loading {
+            text-align: center;
+            color: white;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .success-message {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: none;
+        }
+
+        .checkmark {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: block;
+            stroke-width: 3;
+            stroke: #4caf50;
+            stroke-miterlimit: 10;
+            margin: 20px auto;
+            box-shadow: inset 0px 0px 0px #4caf50;
+            animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both;
+        }
+
+        .checkmark-circle {
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            stroke-width: 3;
+            stroke: #4caf50;
+            fill: none;
+            animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+
+        .checkmark-check {
+            transform-origin: 50% 50%;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+        }
+
+        @keyframes stroke {
+            100% { stroke-dashoffset: 0; }
+        }
+
+        @keyframes scale {
+            0%, 100% { transform: none; }
+            50% { transform: scale3d(1.1, 1.1, 1); }
+        }
+
+        @keyframes fill {
+            100% { box-shadow: inset 0px 0px 0px 30px #4caf50; }
+        }
+
+        .success-title {
+            font-size: 28px;
+            color: #4caf50;
+            margin: 20px 0 10px;
+            font-weight: bold;
+        }
+
+        .success-token {
+            font-size: 48px;
+            color: #667eea;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+
+        .success-text {
+            font-size: 16px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="logo">🏠 SRI KRISHNA GHAR</div>
+        <div class="subtitle">Select your token number to pay</div>
+    </div>
+
+    <div id="loadingState" class="loading">
+        <div class="spinner"></div>
+        <div>Loading pending tokens...</div>
+    </div>
+
+    <div id="tokenGrid" class="token-grid" style="display: none;"></div>
+
+    <div id="emptyState" class="empty-state" style="display: none;">
+        <div class="empty-icon">📋</div>
+        <div class="empty-title">No Pending Payments</div>
+        <div class="empty-text">
+            No tokens are currently awaiting payment.<br>
+            Please get your token from the counter first.
+        </div>
+        <button class="refresh-btn" onclick="loadTokens()">🔄 Refresh</button>
+    </div>
+
+    <div id="successMessage" class="success-message">
+        <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+            <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+            <path class="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+        </svg>
+        <div class="success-title">✅ Payment Successful!</div>
+        <div class="success-token" id="successToken">-</div>
+        <div class="success-text">
+            Your payment has been completed successfully.<br>
+            Your bill will be printed shortly.<br>
+            <strong>Please collect it from the counter.</strong>
+        </div>
+        <button class="refresh-btn" onclick="location.reload()">Pay Another Token</button>
+    </div>
+
+    <div class="footer">
+        🔒 Secure payment powered by Razorpay
+    </div>
+</div>
+
+<script>
+    async function loadTokens() {
+        const loadingState = document.getElementById('loadingState');
+        const tokenGrid = document.getElementById('tokenGrid');
+        const emptyState = document.getElementById('emptyState');
+
+        loadingState.style.display = 'block';
+        tokenGrid.style.display = 'none';
+        emptyState.style.display = 'none';
+
+        try {
+            const response = await fetch('/api/pending-tokens');
+            const data = await response.json();
+
+            loadingState.style.display = 'none';
+
+            if (data.tokens && data.tokens.length > 0) {
+                tokenGrid.style.display = 'grid';
+                tokenGrid.innerHTML = '';
+
+                data.tokens.forEach(token => {
+                    const card = document.createElement('div');
+                    card.className = 'token-card';
+                    card.onclick = () => initiatePayment(token.token_number, token.amount);
+
+                    card.innerHTML = `
+                            <div class="token-number">#${token.token_number}</div>
+                            <div class="token-amount">₹${token.amount}</div>
+                        `;
+
+                    tokenGrid.appendChild(card);
+                });
+            } else {
+                emptyState.style.display = 'block';
+            }
+
+        } catch (error) {
+            console.error('Error loading tokens:', error);
+            loadingState.style.display = 'none';
+            emptyState.style.display = 'block';
+        }
+    }
+
+    async function initiatePayment(tokenNumber, amount) {
+        try {
+            // Create order
+            const response = await fetch('/api/create-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token_number: tokenNumber })
+            });
+
+            const orderData = await response.json();
+
+            if (!response.ok) {
+                alert(orderData.message || 'Failed to create order');
+                return;
+            }
+
+            // Initialize Razorpay
+            const options = {
+                key: orderData.key,
+                amount: orderData.amount,
+                currency: orderData.currency,
+                name: 'SRI KRISHNA GHAR',
+                description: `Token #${tokenNumber}`,
+                order_id: orderData.order_id,
+                handler: function (response) {
+                    showSuccess(tokenNumber);
+                },
+                theme: {
+                    color: '#667eea'
+                },
+                modal: {
+                    ondismiss: function() {
+                        // Payment cancelled
+                    }
+                }
+            };
+
+            const razorpay = new Razorpay(options);
+            razorpay.open();
+
+        } catch (error) {
+            console.error('Payment error:', error);
+            alert('Failed to initiate payment. Please try again.');
+        }
+    }
+
+    function showSuccess(tokenNumber) {
+        document.getElementById('tokenGrid').style.display = 'none';
+        document.getElementById('emptyState').style.display = 'none';
+        document.getElementById('successToken').textContent = `#${tokenNumber}`;
+        document.getElementById('successMessage').style.display = 'block';
+    }
+
+    // Load tokens on page load
+    window.onload = loadTokens;
+
+    // Auto refresh every 10 seconds
+    setInterval(() => {
+        if (document.getElementById('successMessage').style.display === 'none') {
+            loadTokens();
+        }
+    }, 10000);
+</script>
+</body>
+</html>

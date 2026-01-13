@@ -147,10 +147,12 @@ app.post(
                 printAttempts: 0
             });
 
+            // CRITICAL: Mark token as paid so it's removed from frontend
             if (tokenData) {
                 tokenData.status = 'paid';
                 tokenData.paymentId = payment.id;
                 tokenData.paidAt = new Date();
+                console.log(`✅ Token ${tokenNumber} marked as PAID - will be removed from frontend`);
             }
 
             const unprintedCount = Array.from(paidBills.values()).filter(b => !b.printed).length;
@@ -231,6 +233,7 @@ app.get("/api/pending-tokens", (req, res) => {
         }
     }
 
+    // ONLY return tokens with status 'pending' - paid tokens are filtered out
     const tokens = Array.from(pendingTokens.values())
         .filter(t => t.status === 'pending')
         .map(t => ({
@@ -238,6 +241,8 @@ app.get("/api/pending-tokens", (req, res) => {
             amount: t.amount,
             items: t.items
         }));
+
+    console.log(`📊 Pending tokens requested: ${tokens.length} pending out of ${pendingTokens.size} total`);
 
     res.json({ tokens });
 });

@@ -400,7 +400,7 @@ app.post("/api/create-token", androidApiLimiter, authenticateAndroid, (req, res)
     }
 });
 
-app.get("/api/pending-tokens", (req, res) => {
+app.get("/api/pending-tokens", (req, res) => {  // NO authentication middleware
     const twentyFourHours = 24 * 60 * 60 * 1000;
     for (const [tokenNumber, token] of pendingTokens.entries()) {
         if (Date.now() - token.createdAt > twentyFourHours) {

@@ -3,8 +3,8 @@ const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
 const Razorpay = require("razorpay");
 const path = require("path");
-const helmet = require("helmet"); // npm install helmet
-const cors = require("cors"); // npm install cors
+const helmet = require("helmet");
+const cors = require("cors");
 
 const app = express();
 
@@ -27,18 +27,15 @@ for (const envVar of requiredEnvVars) {
     }
 }
 
-// ADMIN_TOKEN is optional - only needed if you want admin access
 if (!process.env.ADMIN_TOKEN) {
     console.warn('⚠️  WARNING: ADMIN_TOKEN not set - admin endpoints will be disabled');
 }
 
-// Validate webhook secret strength
 if (process.env.RAZORPAY_WEBHOOK_SECRET.length < 20) {
     console.error('❌ CRITICAL: RAZORPAY_WEBHOOK_SECRET must be at least 20 characters');
     process.exit(1);
 }
 
-// Validate API key strength
 if (process.env.ANDROID_API_KEY.length < 32) {
     console.error('❌ CRITICAL: ANDROID_API_KEY must be at least 32 characters');
     process.exit(1);
@@ -54,7 +51,6 @@ const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 const ANDROID_API_KEY = process.env.ANDROID_API_KEY;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['https://yourdomain.com'];
 
 /* =========================
    INITIALIZE RAZORPAY
@@ -87,34 +83,13 @@ app.use(helmet({
     }
 }));
 
-// CORS configuration
-const corsOptions = {
-    origin: function (origin, callback) {
-        // Allow requests with no origin (mobile apps, curl, Postman, same-origin)
-        if (!origin) return callback(null, true);
-
-        // In development, allow all origins
-        if (NODE_ENV === 'development') {
-            return callback(null, true);
-        }
-
-        // In production, check allowed origins (if configured)
-        if (ALLOWED_ORIGINS && ALLOWED_ORIGINS.length > 0) {
-            if (ALLOWED_ORIGINS.indexOf(origin) !== -1) {
-                callback(null, true);
-            } else {
-                callback(new Error('Not allowed by CORS'));
-            }
-        } else {
-            // No ALLOWED_ORIGINS configured - allow same origin only
-            callback(null, true);
-        }
-    },
+// Simple CORS - Allow all origins for public endpoints, Android app needs access
+app.use(cors({
+    origin: true, // Allow all origins
     credentials: true,
-    optionsSuccessStatus: 200
-};
-
-app.use(cors(corsOptions));
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'x-api-key', 'authorization', 'x-android-key', 'x-admin-token']
+}));
 
 // Force HTTPS in production
 if (NODE_ENV === 'production') {
@@ -171,7 +146,6 @@ const paidBills = new Map();
    ========================= */
 
 function sanitizeTokenNumber(token) {
-    // Only allow alphanumeric characters
     return String(token).replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
 }
 
@@ -208,13 +182,20 @@ app.set('trust proxy', 1);
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// Static files with cache control
+// Static files - NO CACHE for HTML to prevent caching issues
 app.use(express.static(path.join(__dirname, 'public'), {
-    maxAge: '1h',
-    etag: true
+    maxAge: 0, // Disable caching
+    etag: false,
+    setHeaders: (res, path) => {
+        if (path.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+        }
+    }
 }));
 
-// WEBHOOK ROUTE MUST COME BEFORE express.json()
+// WEBHOOK ROUTE
 app.post(
     "/razorpay-webhook",
     webhookLimiter,
@@ -233,7 +214,6 @@ app.post(
         try {
             const rawBody = req.body.toString('utf8');
 
-            // Verify signature
             const expectedSignature = crypto
                 .createHmac("sha256", RAZORPAY_WEBHOOK_SECRET)
                 .update(rawBody)
@@ -362,6 +342,7 @@ function authenticateAdmin(req, res, next) {
    ALL OTHER ROUTES
    ========================= */
 
+// Android app creates tokens
 app.post("/api/create-token", androidApiLimiter, authenticateAndroid, (req, res) => {
     try {
         const { token_number, amount, items } = req.body;
@@ -400,7 +381,8 @@ app.post("/api/create-token", androidApiLimiter, authenticateAndroid, (req, res)
     }
 });
 
-app.get("/api/pending-tokens", (req, res) => {  // NO authentication middleware
+// PUBLIC - Payment page fetches pending tokens
+app.get("/api/pending-tokens", (req, res) => {
     const twentyFourHours = 24 * 60 * 60 * 1000;
     for (const [tokenNumber, token] of pendingTokens.entries()) {
         if (Date.now() - token.createdAt > twentyFourHours) {
@@ -419,6 +401,7 @@ app.get("/api/pending-tokens", (req, res) => {  // NO authentication middleware
     res.json({ tokens });
 });
 
+// PUBLIC - Payment page creates order for Razorpay
 app.post("/api/create-order", strictLimiter, async (req, res) => {
     try {
         const { token_number } = req.body;
@@ -464,8 +447,8 @@ app.post("/api/create-order", strictLimiter, async (req, res) => {
     }
 });
 
+// Android app polls for bills to print
 app.get("/api/latest-paid-bill", androidApiLimiter, authenticateAndroid, (req, res) => {
-    // Cleanup old bills (older than 2 hours)
     const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
     for (const [paymentId, bill] of paidBills.entries()) {
         if (bill.timestamp && bill.timestamp < twoHoursAgo) {
@@ -504,6 +487,7 @@ app.get("/api/latest-paid-bill", androidApiLimiter, authenticateAndroid, (req, r
     res.status(204).send();
 });
 
+// Android app confirms print
 app.post("/api/confirm-print", androidApiLimiter, authenticateAndroid, (req, res) => {
     try {
         const { paymentId } = req.body;
@@ -536,6 +520,7 @@ app.post("/api/confirm-print", androidApiLimiter, authenticateAndroid, (req, res
     }
 });
 
+// Serve payment page
 app.get("/payment", (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'payment.html'));
 });
@@ -549,11 +534,13 @@ app.get("/health", globalLimiter, (req, res) => {
         status: "OK",
         uptime: process.uptime(),
         environment: NODE_ENV,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        pendingTokens: pendingTokens.size,
+        unprintedBills: Array.from(paidBills.values()).filter(b => !b.printed).length
     });
 });
 
-// Admin endpoints - ONLY with authentication
+// Admin endpoints
 app.get("/admin/bills", authenticateAdmin, (req, res) => {
     const pending = Array.from(pendingTokens.values());
     const paid = Array.from(paidBills.values());
@@ -566,7 +553,7 @@ app.get("/admin/bills", authenticateAdmin, (req, res) => {
     });
 });
 
-// Debug/Test endpoints - ONLY in development
+// Debug endpoints - ONLY in development
 if (NODE_ENV === 'development') {
     app.get("/debug/bills", (req, res) => {
         const allBills = Array.from(paidBills.entries()).map(([paymentId, bill]) => ({
@@ -645,17 +632,13 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: "Internal server error" });
 });
 
-app.use(globalLimiter);
-
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🔒 Environment: ${NODE_ENV}`);
     console.log(`✅ Security features enabled`);
-    console.log(`📱 Payment URL: ${NODE_ENV === 'production' ? 'https://' : 'http://'}yourdomain.com/payment`);
-
-    // Never log actual secrets
+    console.log(`📱 Payment URL: https://server-skg.onrender.com/payment`);
     console.log(`🔑 API Key: ${ANDROID_API_KEY ? '✓ Configured' : '✗ Missing'}`);
-    console.log(`🔐 Webhook Secret: ${RAZORPAY_WEBHOOK_SECRET ? '✓ Configured' : '✗ Missing'}`);
+    console.log(`📝 Webhook Secret: ${RAZORPAY_WEBHOOK_SECRET ? '✓ Configured' : '✗ Missing'}`);
     console.log(`💳 Razorpay: ${RAZORPAY_KEY_ID ? '✓ Configured' : '✗ Missing'}`);
 
     if (NODE_ENV === 'development') {

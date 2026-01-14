@@ -178,24 +178,8 @@ function logSecurityEvent(event, details) {
    ========================= */
 app.set('trust proxy', 1);
 
-// Request size limits
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-
-// Static files - NO CACHE for HTML to prevent caching issues
-app.use(express.static(path.join(__dirname, 'public'), {
-    maxAge: 0, // Disable caching
-    etag: false,
-    setHeaders: (res, path) => {
-        if (path.endsWith('.html')) {
-            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-            res.setHeader('Pragma', 'no-cache');
-            res.setHeader('Expires', '0');
-        }
-    }
-}));
-
-// WEBHOOK ROUTE
+// WEBHOOK ROUTE MUST BE BEFORE express.json() !!!
+// This is critical because webhooks need raw body for signature verification
 app.post(
     "/razorpay-webhook",
     webhookLimiter,
@@ -290,6 +274,24 @@ app.post(
         }
     }
 );
+
+// NOW add the other middleware AFTER webhook
+// Request size limits
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Static files - NO CACHE for HTML to prevent caching issues
+app.use(express.static(path.join(__dirname, 'public'), {
+    maxAge: 0, // Disable caching
+    etag: false,
+    setHeaders: (res, path) => {
+        if (path.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+        }
+    }
+}));
 
 /* =========================
    AUTHENTICATION MIDDLEWARE

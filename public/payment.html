@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport"="width=device-width, initial-scale=1.0">
     <title>SRI KRISHNA GHAR - Payment</title>
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <style>
@@ -96,6 +96,14 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
 
+        .error-state {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
         .empty-icon {
             font-size: 64px;
             margin-bottom: 20px;
@@ -111,6 +119,27 @@
         .empty-text {
             font-size: 16px;
             color: #666;
+            line-height: 1.6;
+        }
+
+        .error-title {
+            font-size: 24px;
+            color: #f44336;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .error-details {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 14px;
+            text-align: left;
+            color: #333;
+            max-height: 200px;
+            overflow-y: auto;
         }
 
         .loading {
@@ -228,6 +257,24 @@
             font-size: 14px;
             opacity: 0.8;
         }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-online {
+            background: #4caf50;
+            box-shadow: 0 0 10px #4caf50;
+        }
+
+        .status-offline {
+            background: #f44336;
+            box-shadow: 0 0 10px #f44336;
+        }
     </style>
 </head>
 <body>
@@ -240,6 +287,7 @@
     <div id="loadingState" class="loading">
         <div class="spinner"></div>
         <div>Loading pending tokens...</div>
+        <div style="margin-top: 10px; font-size: 12px; opacity: 0.8;" id="loadingStatus"></div>
     </div>
 
     <div id="tokenGrid" class="token-grid" style="display: none;"></div>
@@ -252,6 +300,16 @@
             Please get your token from the counter first.
         </div>
         <button class="refresh-btn" onclick="loadTokens()">🔄 Refresh</button>
+    </div>
+
+    <div id="errorState" class="error-state" style="display: none;">
+        <div class="empty-icon">⚠️</div>
+        <div class="error-title">Connection Error</div>
+        <div class="empty-text" id="errorMessage">
+            Unable to connect to the server.
+        </div>
+        <div class="error-details" id="errorDetails"></div>
+        <button class="refresh-btn" onclick="loadTokens()">🔄 Retry</button>
     </div>
 
     <div id="successMessage" class="success-message">
@@ -270,24 +328,80 @@
     </div>
 
     <div class="footer">
-        🔒 Secure payment powered by Razorpay
+        🔒 Secure payment powered by Razorpay<br>
+        <span id="serverStatus" style="font-size: 12px; margin-top: 5px; display: inline-block;">
+            <span class="status-indicator status-offline"></span>
+            Checking server...
+        </span>
     </div>
 </div>
 
 <script>
+    const API_BASE = 'https://server-skg.onrender.com';
+
+    async function checkServerHealth() {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+            const response = await fetch(`${API_BASE}/health`, {
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            if (response.ok) {
+                document.getElementById('serverStatus').innerHTML = `
+                    <span class="status-indicator status-online"></span>
+                    Server online
+                `;
+                return true;
+            }
+            return false;
+        } catch (error) {
+            document.getElementById('serverStatus').innerHTML = `
+                <span class="status-indicator status-offline"></span>
+                Server offline (${error.message})
+            `;
+            return false;
+        }
+    }
+
     async function loadTokens() {
         const loadingState = document.getElementById('loadingState');
         const tokenGrid = document.getElementById('tokenGrid');
         const emptyState = document.getElementById('emptyState');
+        const errorState = document.getElementById('errorState');
+        const loadingStatus = document.getElementById('loadingStatus');
 
+        // Hide all states
         loadingState.style.display = 'block';
         tokenGrid.style.display = 'none';
         emptyState.style.display = 'none';
+        errorState.style.display = 'none';
+
+        loadingStatus.textContent = 'Connecting to server...';
 
         try {
-            const response = await fetch('/api/pending-tokens');
-            const data = await response.json();
+            // Add timeout to fetch
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
+            loadingStatus.textContent = 'Fetching pending tokens...';
+
+            const response = await fetch(`${API_BASE}/api/pending-tokens`, {
+                signal: controller.signal,
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
             loadingState.style.display = 'none';
 
             if (data.tokens && data.tokens.length > 0) {
@@ -300,40 +414,69 @@
                     card.onclick = () => initiatePayment(token.token_number, token.amount);
 
                     card.innerHTML = `
-                            <div class="token-number">#${token.token_number}</div>
-                            <div class="token-amount">₹${token.amount}</div>
-                        `;
+                        <div class="token-number">#${token.token_number}</div>
+                        <div class="token-amount">₹${token.amount}</div>
+                    `;
 
                     tokenGrid.appendChild(card);
                 });
+
+                await checkServerHealth();
             } else {
                 emptyState.style.display = 'block';
+                await checkServerHealth();
             }
 
         } catch (error) {
             console.error('Error loading tokens:', error);
             loadingState.style.display = 'none';
-            emptyState.style.display = 'block';
+            errorState.style.display = 'block';
+
+            let errorMsg = 'Unable to connect to the server.';
+            let errorDetail = '';
+
+            if (error.name === 'AbortError') {
+                errorMsg = 'Server is taking too long to respond.';
+                errorDetail = 'The server might be sleeping (Render free tier). Please wait 30 seconds and try again.';
+            } else if (error.message.includes('Failed to fetch')) {
+                errorMsg = 'Cannot reach the server.';
+                errorDetail = `Server URL: ${API_BASE}\nError: Network request failed\n\nPossible causes:\n- Server is offline\n- CORS blocking the request\n- Server is waking up (wait 30s)`;
+            } else {
+                errorMsg = error.message;
+                errorDetail = `Full error: ${error.toString()}\nServer: ${API_BASE}`;
+            }
+
+            document.getElementById('errorMessage').textContent = errorMsg;
+            document.getElementById('errorDetails').textContent = errorDetail;
+
+            await checkServerHealth();
         }
     }
 
     async function initiatePayment(tokenNumber, amount) {
         try {
-            // Create order
-            const response = await fetch('/api/create-order', {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+            const response = await fetch(`${API_BASE}/api/create-order`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token_number: tokenNumber })
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ token_number: tokenNumber }),
+                signal: controller.signal
             });
+
+            clearTimeout(timeoutId);
 
             const orderData = await response.json();
 
             if (!response.ok) {
-                alert(orderData.message || 'Failed to create order');
+                alert(orderData.error || orderData.message || 'Failed to create order');
                 return;
             }
 
-            // Initialize Razorpay
             const options = {
                 key: orderData.key,
                 amount: orderData.amount,
@@ -349,7 +492,7 @@
                 },
                 modal: {
                     ondismiss: function() {
-                        // Payment cancelled
+                        console.log('Payment cancelled by user');
                     }
                 }
             };
@@ -359,26 +502,35 @@
 
         } catch (error) {
             console.error('Payment error:', error);
-            alert('Failed to initiate payment. Please try again.');
+            if (error.name === 'AbortError') {
+                alert('Server timeout. Please try again in a moment.');
+            } else {
+                alert('Failed to initiate payment. Please try again.');
+            }
         }
     }
 
     function showSuccess(tokenNumber) {
         document.getElementById('tokenGrid').style.display = 'none';
         document.getElementById('emptyState').style.display = 'none';
+        document.getElementById('errorState').style.display = 'none';
         document.getElementById('successToken').textContent = `#${tokenNumber}`;
         document.getElementById('successMessage').style.display = 'block';
     }
 
-    // Load tokens on page load
-    window.onload = loadTokens;
+    // Check server health on load
+    window.onload = async () => {
+        await checkServerHealth();
+        await loadTokens();
+    };
 
-    // Auto refresh every 10 seconds
+    // Auto refresh every 15 seconds (instead of 10)
     setInterval(() => {
-        if (document.getElementById('successMessage').style.display === 'none') {
+        if (document.getElementById('successMessage').style.display === 'none' &&
+            document.getElementById('errorState').style.display === 'none') {
             loadTokens();
         }
-    }, 10000);
+    }, 15000);
 </script>
 </body>
 </html>

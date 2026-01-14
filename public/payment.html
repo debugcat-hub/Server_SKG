@@ -3,231 +3,509 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SRI KRISHNA GHAR - Payment TEST</title>
+    <title>SRI KRISHNA GHAR - Payment</title>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
-            color: white;
         }
+
         .container {
-            max-width: 800px;
+            max-width: 600px;
             margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .token-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .token-card {
             background: white;
+            border-radius: 15px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .token-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+
+        .token-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+
+        .token-number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .token-amount {
+            font-size: 24px;
             color: #333;
-            padding: 30px;
-            border-radius: 10px;
+            font-weight: 600;
         }
-        .status {
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 5px;
-            font-family: monospace;
+
+        .empty-state, .error-state {
+            background: white;
+            border-radius: 20px;
+            padding: 60px 40px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
-        .success { background: #d4edda; color: #155724; }
-        .error { background: #f8d7da; color: #721c24; }
-        .info { background: #d1ecf1; color: #0c5460; }
-        pre {
+
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .empty-title, .error-title {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .error-title {
+            color: #f44336;
+        }
+
+        .empty-text {
+            font-size: 16px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .error-details {
             background: #f5f5f5;
             padding: 15px;
-            border-radius: 5px;
-            overflow-x: auto;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 12px;
+            text-align: left;
+            color: #333;
+            max-height: 200px;
+            overflow-y: auto;
+            word-wrap: break-word;
         }
-        button {
-            background: #667eea;
+
+        .loading {
+            text-align: center;
+            color: white;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .success-message {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: none;
+        }
+
+        .checkmark {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: block;
+            stroke-width: 3;
+            stroke: #4caf50;
+            stroke-miterlimit: 10;
+            margin: 20px auto;
+            box-shadow: inset 0px 0px 0px #4caf50;
+            animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both;
+        }
+
+        .checkmark-circle {
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            stroke-width: 3;
+            stroke: #4caf50;
+            fill: none;
+            animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+
+        .checkmark-check {
+            transform-origin: 50% 50%;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+        }
+
+        @keyframes stroke {
+            100% { stroke-dashoffset: 0; }
+        }
+
+        @keyframes scale {
+            0%, 100% { transform: none; }
+            50% { transform: scale3d(1.1, 1.1, 1); }
+        }
+
+        @keyframes fill {
+            100% { box-shadow: inset 0px 0px 0px 30px #4caf50; }
+        }
+
+        .success-title {
+            font-size: 28px;
+            color: #4caf50;
+            margin: 20px 0 10px;
+            font-weight: bold;
+        }
+
+        .success-token {
+            font-size: 48px;
+            color: #667eea;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+
+        .success-text {
+            font-size: 16px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             border: none;
-            padding: 12px 24px;
-            border-radius: 5px;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 14px;
             cursor: pointer;
-            font-size: 16px;
-            margin: 10px 5px;
+            margin-top: 20px;
+            transition: transform 0.2s;
         }
-        button:hover {
-            background: #5568d3;
+
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .debug-info {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            padding: 10px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 12px;
+            font-family: monospace;
         }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>🏠 SRI KRISHNA GHAR - Diagnostic Page</h1>
-    
-    <div class="status info">
-        <strong>✓ JavaScript is working!</strong><br>
-        If you can see this message, JavaScript is loading properly.
+    <div class="header">
+        <div class="logo">🏠 SRI KRISHNA GHAR</div>
+        <div class="subtitle">Select your token number to pay</div>
     </div>
 
-    <h2>Step 1: Check API Connection</h2>
-    <button onclick="testAPI()">Test API Connection</button>
-    <div id="apiResult"></div>
-
-    <h2>Step 2: Fetch Pending Tokens</h2>
-    <button onclick="fetchTokens()">Fetch Pending Tokens</button>
-    <div id="tokensResult"></div>
-
-    <h2>Step 3: Test Full Flow</h2>
-    <button onclick="testFullFlow()">Run Full Test</button>
-    <div id="fullTestResult"></div>
-
-    <h2>Server Information</h2>
-    <div id="serverInfo" class="status info">
-        <strong>Current URL:</strong> <span id="currentUrl"></span><br>
-        <strong>API Base:</strong> <span id="apiBase"></span><br>
-        <strong>Timestamp:</strong> <span id="timestamp"></span>
+    <div id="loadingState" class="loading">
+        <div class="spinner"></div>
+        <div>Loading pending tokens...</div>
     </div>
 
-    <hr style="margin: 30px 0;">
+    <div id="tokenGrid" class="token-grid" style="display: none;"></div>
+
+    <div id="emptyState" class="empty-state" style="display: none;">
+        <div class="empty-icon">📋</div>
+        <div class="empty-title">No Pending Payments</div>
+        <div class="empty-text">
+            No tokens are currently awaiting payment.<br>
+            Please get your token from the counter first.
+        </div>
+        <button class="refresh-btn" onclick="loadTokens()">🔄 Refresh</button>
+    </div>
+
+    <div id="errorState" class="error-state" style="display: none;">
+        <div class="empty-icon">⚠️</div>
+        <div class="error-title">Error Loading Tokens</div>
+        <div class="empty-text" id="errorMessage"></div>
+        <div class="error-details" id="errorDetails"></div>
+        <button class="refresh-btn" onclick="loadTokens()">🔄 Retry</button>
+    </div>
+
+    <div id="successMessage" class="success-message">
+        <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+            <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+            <path class="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+        </svg>
+        <div class="success-title">✅ Payment Successful!</div>
+        <div class="success-token" id="successToken">-</div>
+        <div class="success-text">
+            Your payment has been completed successfully.<br>
+            Your bill will be printed shortly.<br>
+            <strong>Please collect it from the counter.</strong>
+        </div>
+        <button class="refresh-btn" onclick="location.reload()">Pay Another Token</button>
+    </div>
+
+    <div class="footer">
+        🔒 Secure payment powered by Razorpay
+    </div>
     
-    <p><a href="/payment" style="color: #667eea;">← Back to Payment Page</a></p>
+    <!-- Debug info - remove in production -->
+    <div class="debug-info" id="debugInfo" style="display: none;">
+        <div><strong>Debug Info:</strong></div>
+        <div id="debugContent"></div>
+    </div>
 </div>
 
 <script>
-    // Display current info
-    document.getElementById('currentUrl').textContent = window.location.href;
-    document.getElementById('apiBase').textContent = window.location.origin;
-    document.getElementById('timestamp').textContent = new Date().toISOString();
-
-    console.log('Diagnostic page loaded successfully');
-    console.log('Current origin:', window.location.origin);
-
-    async function testAPI() {
-        const resultDiv = document.getElementById('apiResult');
-        resultDiv.innerHTML = '<div class="status info">Testing API connection...</div>';
-        
-        try {
-            const url = `${window.location.origin}/health`;
-            console.log('Testing health endpoint:', url);
-            
-            const response = await fetch(url);
-            const data = await response.json();
-            
-            console.log('Health check response:', data);
-            
-            resultDiv.innerHTML = `
-                <div class="status success">
-                    <strong>✓ API Connection Successful!</strong><br>
-                    Status: ${data.status}<br>
-                    Uptime: ${Math.floor(data.uptime)} seconds<br>
-                    Environment: ${data.environment}
-                </div>
-                <pre>${JSON.stringify(data, null, 2)}</pre>
-            `;
-        } catch (error) {
-            console.error('API test failed:', error);
-            resultDiv.innerHTML = `
-                <div class="status error">
-                    <strong>✗ API Connection Failed</strong><br>
-                    Error: ${error.message}
-                </div>
-            `;
-        }
-    }
-
-    async function fetchTokens() {
-        const resultDiv = document.getElementById('tokensResult');
-        resultDiv.innerHTML = '<div class="status info">Fetching pending tokens...</div>';
-        
-        try {
-            const url = `${window.location.origin}/api/pending-tokens`;
-            console.log('Fetching from:', url);
-            
-            const response = await fetch(url);
-            console.log('Response status:', response.status);
-            console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-            
-            const data = await response.json();
-            console.log('Tokens data:', data);
-            
-            if (data.tokens && data.tokens.length > 0) {
-                resultDiv.innerHTML = `
-                    <div class="status success">
-                        <strong>✓ Found ${data.tokens.length} pending token(s)</strong>
-                    </div>
-                    <pre>${JSON.stringify(data, null, 2)}</pre>
-                `;
-            } else {
-                resultDiv.innerHTML = `
-                    <div class="status info">
-                        <strong>No pending tokens found</strong><br>
-                        The API is working but there are no tokens waiting for payment.
-                    </div>
-                    <pre>${JSON.stringify(data, null, 2)}</pre>
-                `;
+    // Use relative URLs since we're on the same domain
+    const API_BASE = window.location.origin;
+    
+    // Enable debug mode (set to false in production)
+    const DEBUG = true;
+    
+    function debugLog(message, data) {
+        if (DEBUG) {
+            console.log(`[DEBUG] ${message}`, data || '');
+            const debugInfo = document.getElementById('debugInfo');
+            const debugContent = document.getElementById('debugContent');
+            debugInfo.style.display = 'block';
+            const timestamp = new Date().toLocaleTimeString();
+            debugContent.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            if (data) {
+                debugContent.innerHTML += `<div style="padding-left: 20px;">${JSON.stringify(data, null, 2)}</div>`;
             }
-        } catch (error) {
-            console.error('Fetch tokens failed:', error);
-            resultDiv.innerHTML = `
-                <div class="status error">
-                    <strong>✗ Failed to fetch tokens</strong><br>
-                    Error: ${error.message}
-                </div>
-            `;
         }
     }
 
-    async function testFullFlow() {
-        const resultDiv = document.getElementById('fullTestResult');
-        resultDiv.innerHTML = '<div class="status info">Running full diagnostic test...</div>';
-        
-        let results = [];
-        
-        // Test 1: Health check
-        try {
-            const healthResponse = await fetch(`${window.location.origin}/health`);
-            const healthData = await healthResponse.json();
-            results.push({
-                test: 'Health Check',
-                status: 'PASS',
-                data: healthData
-            });
-        } catch (error) {
-            results.push({
-                test: 'Health Check',
-                status: 'FAIL',
-                error: error.message
-            });
-        }
+    async function loadTokens() {
+        const loadingState = document.getElementById('loadingState');
+        const tokenGrid = document.getElementById('tokenGrid');
+        const emptyState = document.getElementById('emptyState');
+        const errorState = document.getElementById('errorState');
 
-        // Test 2: Pending tokens
-        try {
-            const tokensResponse = await fetch(`${window.location.origin}/api/pending-tokens`);
-            const tokensData = await tokensResponse.json();
-            results.push({
-                test: 'Pending Tokens API',
-                status: 'PASS',
-                data: tokensData
-            });
-        } catch (error) {
-            results.push({
-                test: 'Pending Tokens API',
-                status: 'FAIL',
-                error: error.message
-            });
-        }
+        debugLog('Starting loadTokens()');
+        debugLog('API Base URL', API_BASE);
 
-        // Display results
-        let html = '<h3>Test Results:</h3>';
-        results.forEach(result => {
-            const statusClass = result.status === 'PASS' ? 'success' : 'error';
-            html += `
-                <div class="status ${statusClass}">
-                    <strong>${result.status === 'PASS' ? '✓' : '✗'} ${result.test}</strong><br>
-                    Status: ${result.status}
-                </div>
-                <pre>${JSON.stringify(result.data || result.error, null, 2)}</pre>
-            `;
-        });
-        
-        resultDiv.innerHTML = html;
+        // Hide all states
+        loadingState.style.display = 'block';
+        tokenGrid.style.display = 'none';
+        emptyState.style.display = 'none';
+        errorState.style.display = 'none';
+
+        try {
+            const url = `${API_BASE}/api/pending-tokens`;
+            debugLog('Fetching from URL', url);
+            
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                },
+                cache: 'no-cache'
+            });
+
+            debugLog('Response status', response.status);
+            debugLog('Response headers', Object.fromEntries(response.headers.entries()));
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                debugLog('Non-JSON response received', text.substring(0, 200));
+                throw new Error('Server returned non-JSON response');
+            }
+
+            const data = await response.json();
+            debugLog('Received data', data);
+
+            loadingState.style.display = 'none';
+
+            if (data.tokens && Array.isArray(data.tokens) && data.tokens.length > 0) {
+                debugLog('Displaying tokens', data.tokens.length);
+                tokenGrid.style.display = 'grid';
+                tokenGrid.innerHTML = '';
+
+                data.tokens.forEach(token => {
+                    const card = document.createElement('div');
+                    card.className = 'token-card';
+                    card.onclick = () => initiatePayment(token.token_number, token.amount);
+
+                    card.innerHTML = `
+                        <div class="token-number">#${token.token_number}</div>
+                        <div class="token-amount">₹${token.amount}</div>
+                    `;
+
+                    tokenGrid.appendChild(card);
+                });
+            } else {
+                debugLog('No tokens found');
+                emptyState.style.display = 'block';
+            }
+
+        } catch (error) {
+            debugLog('Error caught', error.toString());
+            console.error('Error loading tokens:', error);
+            
+            loadingState.style.display = 'none';
+            errorState.style.display = 'block';
+            
+            document.getElementById('errorMessage').textContent = error.message;
+            document.getElementById('errorDetails').textContent = 
+                `URL: ${API_BASE}/api/pending-tokens\n` +
+                `Error: ${error.toString()}\n` +
+                `Type: ${error.name}\n\n` +
+                `Check browser console (F12) for more details.`;
+        }
     }
 
-    // Auto-run basic test on load
+    async function initiatePayment(tokenNumber, amount) {
+        debugLog('Initiating payment', { tokenNumber, amount });
+        
+        try {
+            const url = `${API_BASE}/api/create-order`;
+            debugLog('Creating order at', url);
+            
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ token_number: tokenNumber })
+            });
+
+            debugLog('Order response status', response.status);
+
+            const orderData = await response.json();
+            debugLog('Order data received', orderData);
+
+            if (!response.ok) {
+                alert(orderData.error || orderData.message || 'Failed to create order');
+                return;
+            }
+
+            debugLog('Opening Razorpay checkout');
+
+            const options = {
+                key: orderData.key,
+                amount: orderData.amount,
+                currency: orderData.currency,
+                name: 'SRI KRISHNA GHAR',
+                description: `Token #${tokenNumber}`,
+                order_id: orderData.order_id,
+                handler: function (response) {
+                    debugLog('Payment success', response);
+                    showSuccess(tokenNumber);
+                },
+                theme: {
+                    color: '#667eea'
+                },
+                modal: {
+                    ondismiss: function() {
+                        debugLog('Payment cancelled by user');
+                    }
+                }
+            };
+
+            const razorpay = new Razorpay(options);
+            razorpay.open();
+
+        } catch (error) {
+            debugLog('Payment error', error.toString());
+            console.error('Payment error:', error);
+            alert('Failed to initiate payment: ' + error.message);
+        }
+    }
+
+    function showSuccess(tokenNumber) {
+        document.getElementById('tokenGrid').style.display = 'none';
+        document.getElementById('emptyState').style.display = 'none';
+        document.getElementById('errorState').style.display = 'none';
+        document.getElementById('successToken').textContent = `#${tokenNumber}`;
+        document.getElementById('successMessage').style.display = 'block';
+    }
+
+    // Load tokens on page load
     window.onload = () => {
-        console.log('Page fully loaded, running auto-test...');
-        setTimeout(testAPI, 1000);
+        debugLog('Page loaded, window.location', {
+            origin: window.location.origin,
+            href: window.location.href
+        });
+        loadTokens();
     };
+
+    // Auto refresh every 10 seconds
+    setInterval(() => {
+        if (document.getElementById('successMessage').style.display === 'none' &&
+            document.getElementById('errorState').style.display === 'none') {
+            debugLog('Auto-refreshing tokens');
+            loadTokens();
+        }
+    }, 10000);
 </script>
 </body>
 </html>

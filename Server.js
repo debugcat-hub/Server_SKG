@@ -3,17 +3,58 @@ const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
 const Razorpay = require("razorpay");
 const path = require("path");
+const helmet = require("helmet"); // npm install helmet
+const cors = require("cors"); // npm install cors
 
 const app = express();
 
 /* =========================
-   CONFIG
+   SECURITY CONFIGURATION
+   ========================= */
+
+// Validate required environment variables
+const requiredEnvVars = [
+    'RAZORPAY_WEBHOOK_SECRET',
+    'RAZORPAY_KEY_ID',
+    'RAZORPAY_KEY_SECRET',
+    'ANDROID_API_KEY'
+];
+
+for (const envVar of requiredEnvVars) {
+    if (!process.env[envVar]) {
+        console.error(`❌ CRITICAL: Missing required environment variable: ${envVar}`);
+        process.exit(1);
+    }
+}
+
+// ADMIN_TOKEN is optional - only needed if you want admin access
+if (!process.env.ADMIN_TOKEN) {
+    console.warn('⚠️  WARNING: ADMIN_TOKEN not set - admin endpoints will be disabled');
+}
+
+// Validate webhook secret strength
+if (process.env.RAZORPAY_WEBHOOK_SECRET.length < 20) {
+    console.error('❌ CRITICAL: RAZORPAY_WEBHOOK_SECRET must be at least 20 characters');
+    process.exit(1);
+}
+
+// Validate API key strength
+if (process.env.ANDROID_API_KEY.length < 32) {
+    console.error('❌ CRITICAL: ANDROID_API_KEY must be at least 32 characters');
+    process.exit(1);
+}
+
+/* =========================
+   CONFIG - ALL FROM ENV
    ========================= */
 const PORT = process.env.PORT || 5000;
-const RAZORPAY_WEBHOOK_SECRET = '1234567890'; // Your actual secret
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID||'rzp_test_S3I4542jRUgPsp';
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET||'H6dYHbF4MhSnVVSQ4IwktSCV';
-const ANDROID_API_KEY = process.env.ANDROID_API_KEY||'hello_people';
+const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+const ANDROID_API_KEY = process.env.ANDROID_API_KEY;
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['https://yourdomain.com'];
 
 /* =========================
    INITIALIZE RAZORPAY
@@ -24,6 +65,68 @@ const razorpay = new Razorpay({
 });
 
 /* =========================
+   SECURITY MIDDLEWARE
+   ========================= */
+
+// Helmet for security headers
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "checkout.razorpay.com", "cdnjs.cloudflare.com"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "https:"],
+            connectSrc: ["'self'", "api.razorpay.com"],
+            frameSrc: ["'self'", "api.razorpay.com"]
+        }
+    },
+    hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+    }
+}));
+
+// CORS configuration
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Allow requests with no origin (mobile apps, curl, Postman, same-origin)
+        if (!origin) return callback(null, true);
+
+        // In development, allow all origins
+        if (NODE_ENV === 'development') {
+            return callback(null, true);
+        }
+
+        // In production, check allowed origins (if configured)
+        if (ALLOWED_ORIGINS && ALLOWED_ORIGINS.length > 0) {
+            if (ALLOWED_ORIGINS.indexOf(origin) !== -1) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
+        } else {
+            // No ALLOWED_ORIGINS configured - allow same origin only
+            callback(null, true);
+        }
+    },
+    credentials: true,
+    optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+
+// Force HTTPS in production
+if (NODE_ENV === 'production') {
+    app.use((req, res, next) => {
+        if (req.header('x-forwarded-proto') !== 'https') {
+            return res.redirect(`https://${req.header('host')}${req.url}`);
+        }
+        next();
+    });
+}
+
+/* =========================
    RATE LIMITING
    ========================= */
 const webhookLimiter = rateLimit({
@@ -32,6 +135,7 @@ const webhookLimiter = rateLimit({
     message: { error: "Too many webhook requests" },
     standardHeaders: true,
     legacyHeaders: false,
+    skipSuccessfulRequests: false
 });
 
 const androidApiLimiter = rateLimit({
@@ -50,6 +154,12 @@ const globalLimiter = rateLimit({
     legacyHeaders: false,
 });
 
+const strictLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 50,
+    message: { error: "Too many requests from this IP" },
+});
+
 /* =========================
    STORAGE
    ========================= */
@@ -57,36 +167,71 @@ const pendingTokens = new Map();
 const paidBills = new Map();
 
 /* =========================
+   INPUT VALIDATION & SANITIZATION
+   ========================= */
+
+function sanitizeTokenNumber(token) {
+    // Only allow alphanumeric characters
+    return String(token).replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
+}
+
+function validateAmount(amount) {
+    const num = parseFloat(amount);
+    if (isNaN(num) || num <= 0 || num > 1000000) {
+        throw new Error('Invalid amount');
+    }
+    return num;
+}
+
+function validateItems(items) {
+    if (!Array.isArray(items)) return [];
+    return items.slice(0, 100).map(item =>
+        String(item).substring(0, 50)
+    );
+}
+
+/* =========================
+   SECURITY LOGGING
+   ========================= */
+
+function logSecurityEvent(event, details) {
+    const timestamp = new Date().toISOString();
+    console.log(`🔒 [SECURITY] ${timestamp} - ${event}:`, JSON.stringify(details));
+}
+
+/* =========================
    MIDDLEWARE - CRITICAL ORDER!
    ========================= */
 app.set('trust proxy', 1);
 
-// Static files first
-app.use(express.static(path.join(__dirname, 'public')));
+// Request size limits
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Static files with cache control
+app.use(express.static(path.join(__dirname, 'public'), {
+    maxAge: '1h',
+    etag: true
+}));
 
 // WEBHOOK ROUTE MUST COME BEFORE express.json()
-// This is the critical fix!
 app.post(
     "/razorpay-webhook",
     webhookLimiter,
-    express.raw({ type: "application/json" }),
+    express.raw({ type: "application/json", limit: '10kb' }),
     (req, res) => {
-        console.log("📨 Webhook received at:", new Date().toISOString());
+        const timestamp = new Date().toISOString();
+        console.log("📨 Webhook received at:", timestamp);
 
         const receivedSignature = req.headers["x-razorpay-signature"];
 
         if (!receivedSignature) {
-            console.error("❌ No signature provided");
+            logSecurityEvent('WEBHOOK_NO_SIGNATURE', { ip: req.ip });
             return res.status(400).send("Missing signature");
         }
 
         try {
-            // Get raw body as string
             const rawBody = req.body.toString('utf8');
-
-            console.log("📦 Body type:", typeof req.body, "| Is Buffer:", Buffer.isBuffer(req.body));
-            console.log("📦 Raw body length:", rawBody.length);
-            console.log("📝 First 200 chars:", rawBody.substring(0, 200));
 
             // Verify signature
             const expectedSignature = crypto
@@ -94,11 +239,11 @@ app.post(
                 .update(rawBody)
                 .digest("hex");
 
-            console.log("🔐 Received:", receivedSignature);
-            console.log("🔐 Expected:", expectedSignature);
-
             if (receivedSignature !== expectedSignature) {
-                console.error("❌ Signature mismatch!");
+                logSecurityEvent('WEBHOOK_INVALID_SIGNATURE', {
+                    ip: req.ip,
+                    received: receivedSignature.substring(0, 10) + '...'
+                });
                 return res.status(400).send("Invalid signature");
             }
 
@@ -113,7 +258,7 @@ app.post(
             }
 
             const payment = payload.payload.payment.entity;
-            const tokenNumber = payment.notes?.token_number || 'Unknown';
+            const tokenNumber = sanitizeTokenNumber(payment.notes?.token_number || 'Unknown');
 
             console.log(`💰 Payment: ${payment.id} | Token: ${tokenNumber} | ₹${payment.amount / 100}`);
 
@@ -131,10 +276,9 @@ app.post(
                 amount: payment.amount / 100,
                 items: tokenData?.items || [],
                 method: payment.method?.toUpperCase() || 'ONLINE',
-                customerName: payment.notes?.customer_name ||
-                    payment.email?.split('@')[0] || 'Guest',
-                customerEmail: payment.email || '',
-                customerPhone: payment.contact || '',
+                customerName: (payment.notes?.customer_name || payment.email?.split('@')[0] || 'Guest').substring(0, 100),
+                customerEmail: (payment.email || '').substring(0, 100),
+                customerPhone: (payment.contact || '').substring(0, 20),
                 time: new Date().toLocaleTimeString('en-IN', {
                     timeZone: 'Asia/Kolkata',
                     hour12: false
@@ -147,51 +291,78 @@ app.post(
                 printAttempts: 0
             });
 
-            // CRITICAL: Mark token as paid so it's removed from frontend
             if (tokenData) {
                 tokenData.status = 'paid';
                 tokenData.paymentId = payment.id;
                 tokenData.paidAt = new Date();
-                console.log(`✅ Token ${tokenNumber} marked as PAID - will be removed from frontend`);
+                console.log(`✅ Token ${tokenNumber} marked as PAID`);
             }
 
             const unprintedCount = Array.from(paidBills.values()).filter(b => !b.printed).length;
             console.log(`✅ Bill stored! Unprinted: ${unprintedCount}`);
-            console.log(`📋 Bill details:`, JSON.stringify({
-                paymentId: payment.id,
-                tokenNumber: tokenNumber,
-                amount: payment.amount / 100,
-                printed: false
-            }, null, 2));
 
             res.status(200).json({ success: true });
 
         } catch (err) {
+            logSecurityEvent('WEBHOOK_ERROR', { error: err.message, ip: req.ip });
             console.error("❌ Webhook error:", err.message);
             res.status(400).send("Error");
         }
     }
 );
 
-// NOW apply JSON parsing for all OTHER routes
-app.use(express.json());
-
 /* =========================
-   ALL OTHER ROUTES BELOW
+   AUTHENTICATION MIDDLEWARE
    ========================= */
 
-app.post("/api/create-token", androidApiLimiter, (req, res) => {
+function authenticateAndroid(req, res, next) {
     const authToken = req.headers['x-api-key'] ||
         req.headers['authorization'] ||
         req.headers['x-android-key'];
 
-    if (ANDROID_API_KEY && authToken?.replace(/^Bearer\s+/i, '') !== ANDROID_API_KEY) {
+    const token = authToken?.replace(/^Bearer\s+/i, '');
+
+    if (!token || token !== ANDROID_API_KEY) {
+        logSecurityEvent('AUTH_FAILED_ANDROID', {
+            ip: req.ip,
+            path: req.path,
+            providedKey: token ? token.substring(0, 8) + '...' : 'none'
+        });
         return res.status(403).json({
             error: "Forbidden",
             code: "INVALID_API_KEY"
         });
     }
 
+    next();
+}
+
+function authenticateAdmin(req, res, next) {
+    if (!ADMIN_TOKEN) {
+        return res.status(503).json({
+            error: "Admin access not configured",
+            message: "Set ADMIN_TOKEN environment variable to enable admin endpoints"
+        });
+    }
+
+    const adminToken = req.headers['x-admin-token'];
+
+    if (!adminToken || adminToken !== ADMIN_TOKEN) {
+        logSecurityEvent('AUTH_FAILED_ADMIN', {
+            ip: req.ip,
+            path: req.path
+        });
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    next();
+}
+
+/* =========================
+   ALL OTHER ROUTES
+   ========================= */
+
+app.post("/api/create-token", androidApiLimiter, authenticateAndroid, (req, res) => {
     try {
         const { token_number, amount, items } = req.body;
 
@@ -202,25 +373,29 @@ app.post("/api/create-token", androidApiLimiter, (req, res) => {
             });
         }
 
-        pendingTokens.set(token_number, {
-            tokenNumber: token_number,
-            amount: parseFloat(amount),
-            items: items || [],
+        const sanitizedToken = sanitizeTokenNumber(token_number);
+        const validatedAmount = validateAmount(amount);
+        const validatedItems = validateItems(items);
+
+        pendingTokens.set(sanitizedToken, {
+            tokenNumber: sanitizedToken,
+            amount: validatedAmount,
+            items: validatedItems,
             createdAt: Date.now(),
             status: 'pending'
         });
 
-        console.log(`✅ Token created: ${token_number} | Amount: ₹${amount}`);
+        console.log(`✅ Token created: ${sanitizedToken} | Amount: ₹${validatedAmount}`);
 
         res.json({
             success: true,
-            token_number: token_number,
-            amount: amount,
+            token_number: sanitizedToken,
+            amount: validatedAmount,
             message: "Token created successfully"
         });
 
     } catch (err) {
-        console.error("Create token error:", err);
+        console.error("Create token error:", err.message);
         res.status(500).json({ error: "Failed to create token" });
     }
 });
@@ -233,7 +408,6 @@ app.get("/api/pending-tokens", (req, res) => {
         }
     }
 
-    // ONLY return tokens with status 'pending' - paid tokens are filtered out
     const tokens = Array.from(pendingTokens.values())
         .filter(t => t.status === 'pending')
         .map(t => ({
@@ -242,38 +416,38 @@ app.get("/api/pending-tokens", (req, res) => {
             items: t.items
         }));
 
-    console.log(`📊 Pending tokens requested: ${tokens.length} pending out of ${pendingTokens.size} total`);
-
     res.json({ tokens });
 });
 
-app.post("/api/create-order", async (req, res) => {
+app.post("/api/create-order", strictLimiter, async (req, res) => {
     try {
         const { token_number } = req.body;
 
-        const token = pendingTokens.get(token_number);
+        if (!token_number) {
+            return res.status(400).json({ error: "Missing token_number" });
+        }
+
+        const sanitizedToken = sanitizeTokenNumber(token_number);
+        const token = pendingTokens.get(sanitizedToken);
+
         if (!token) {
-            return res.status(404).json({
-                error: "Token not found"
-            });
+            return res.status(404).json({ error: "Token not found" });
         }
 
         if (token.status !== 'pending') {
-            return res.status(400).json({
-                error: "Token already paid"
-            });
+            return res.status(400).json({ error: "Token already paid" });
         }
 
         const order = await razorpay.orders.create({
             amount: Math.round(token.amount * 100),
             currency: 'INR',
-            receipt: `token_${token_number}_${Date.now()}`,
+            receipt: `token_${sanitizedToken}_${Date.now()}`,
             notes: {
-                token_number: token_number.toString()
+                token_number: sanitizedToken
             }
         });
 
-        console.log(`📝 Order created: ${order.id} for Token: ${token_number}`);
+        console.log(`📝 Order created: ${order.id} for Token: ${sanitizedToken}`);
 
         res.json({
             success: true,
@@ -281,76 +455,34 @@ app.post("/api/create-order", async (req, res) => {
             amount: order.amount,
             currency: order.currency,
             key: RAZORPAY_KEY_ID,
-            token_number: token_number
+            token_number: sanitizedToken
         });
 
     } catch (err) {
-        console.error("Order creation error:", err);
+        console.error("Order creation error:", err.message);
         res.status(500).json({ error: "Failed to create order" });
     }
 });
 
-/* =========================
-   ANDROID - FETCH LATEST PAID BILL (FIXED!)
-   ========================= */
-app.get("/api/latest-paid-bill", androidApiLimiter, (req, res) => {
-    const authToken = req.headers['x-api-key'] ||
-        req.headers['authorization'] ||
-        req.headers['x-android-key'];
-
-    if (ANDROID_API_KEY) {
-        const token = authToken?.replace(/^Bearer\s+/i, '');
-        if (token !== ANDROID_API_KEY) {
-            console.log("❌ Invalid API key from Android");
-            return res.status(403).json({
-                error: "Forbidden",
-                code: "INVALID_API_KEY"
-            });
-        }
-    }
-
-    const currentTime = new Date().toLocaleTimeString('en-IN', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
-    console.log(`📱 Android polling at: ${currentTime}`);
-
+app.get("/api/latest-paid-bill", androidApiLimiter, authenticateAndroid, (req, res) => {
     // Cleanup old bills (older than 2 hours)
     const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
     for (const [paymentId, bill] of paidBills.entries()) {
         if (bill.timestamp && bill.timestamp < twoHoursAgo) {
-            console.log(`🧹 Cleaning up old bill: ${paymentId}`);
             paidBills.delete(paymentId);
         }
     }
 
-    // Find first unprinted bill (oldest first)
     const unprintedBills = Array.from(paidBills.values())
         .filter(b => !b.printed)
         .sort((a, b) => a.timestamp - b.timestamp);
 
-    const totalBills = paidBills.size;
-    const unprintedCount = unprintedBills.length;
-
-    console.log(`📊 Bills status - Total: ${totalBills}, Unprinted: ${unprintedCount}`);
-
     if (unprintedBills.length > 0) {
         const bill = unprintedBills[0];
-
-        // DON'T mark as printed yet - only increment attempt counter
         bill.printAttempts = (bill.printAttempts || 0) + 1;
         bill.lastPrintAttempt = Date.now();
 
-        console.log(`📤 Sending bill to Android:`);
-        console.log(`   Payment ID: ${bill.paymentId}`);
-        console.log(`   Token: ${bill.tokenNumber}`);
-        console.log(`   Amount: ₹${bill.amount}`);
-        console.log(`   Attempt: ${bill.printAttempts}`);
-        console.log(`   Items:`, bill.items);
-
-        const responseData = {
+        return res.json({
             orderId: bill.orderId,
             paymentId: bill.paymentId,
             tokenNumber: bill.tokenNumber,
@@ -366,36 +498,13 @@ app.get("/api/latest-paid-bill", androidApiLimiter, (req, res) => {
             printed: bill.printed,
             serverTime: new Date().toISOString(),
             serverTimestamp: Date.now()
-        };
-
-        console.log(`📦 Response payload:`, JSON.stringify(responseData, null, 2));
-
-        return res.json(responseData);
+        });
     }
 
-    // No unprinted bills
-    console.log("✅ No unprinted bills available (204 response)");
     res.status(204).send();
 });
 
-/* =========================
-   ANDROID - CONFIRM BILL PRINTED (FIXED!)
-   ========================= */
-app.post("/api/confirm-print", androidApiLimiter, (req, res) => {
-    const authToken = req.headers['x-api-key'] ||
-        req.headers['authorization'] ||
-        req.headers['x-android-key'];
-
-    if (ANDROID_API_KEY) {
-        const token = authToken?.replace(/^Bearer\s+/i, '');
-        if (token !== ANDROID_API_KEY) {
-            return res.status(403).json({
-                error: "Forbidden",
-                code: "INVALID_API_KEY"
-            });
-        }
-    }
-
+app.post("/api/confirm-print", androidApiLimiter, authenticateAndroid, (req, res) => {
     try {
         const { paymentId } = req.body;
 
@@ -410,8 +519,7 @@ app.post("/api/confirm-print", androidApiLimiter, (req, res) => {
 
             const unprintedCount = Array.from(paidBills.values()).filter(b => !b.printed).length;
 
-            console.log(`✅ Print confirmed for payment: ${paymentId} (Token: ${bill.tokenNumber})`);
-            console.log(`📊 Remaining unprinted bills: ${unprintedCount}`);
+            console.log(`✅ Print confirmed: ${paymentId} (Token: ${bill.tokenNumber})`);
 
             res.json({
                 success: true,
@@ -419,12 +527,11 @@ app.post("/api/confirm-print", androidApiLimiter, (req, res) => {
                 unprintedBills: unprintedCount
             });
         } else {
-            console.log(`❌ Bill not found for confirmation: ${paymentId}`);
             res.status(404).json({ error: "Bill not found" });
         }
 
     } catch (err) {
-        console.error("Confirm print error:", err);
+        console.error("Confirm print error:", err.message);
         res.status(500).json({ error: "Failed to confirm print" });
     }
 });
@@ -438,104 +545,16 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", globalLimiter, (req, res) => {
-    const unprintedCount = Array.from(paidBills.values()).filter(b => !b.printed).length;
     res.json({
         status: "OK",
         uptime: process.uptime(),
-        pendingTokens: pendingTokens.size,
-        unprintedBills: unprintedCount,
-        totalBills: paidBills.size
+        environment: NODE_ENV,
+        timestamp: new Date().toISOString()
     });
 });
 
-/* =========================
-   DEBUG ENDPOINT - View all bills
-   ========================= */
-app.get("/debug/bills", (req, res) => {
-    const allBills = Array.from(paidBills.entries()).map(([paymentId, bill]) => ({
-        paymentId,
-        tokenNumber: bill.tokenNumber,
-        amount: bill.amount,
-        printed: bill.printed,
-        printAttempts: bill.printAttempts || 0,
-        timestamp: new Date(bill.timestamp).toLocaleString('en-IN')
-    }));
-
-    res.json({
-        totalBills: paidBills.size,
-        unprintedBills: allBills.filter(b => !b.printed).length,
-        bills: allBills
-    });
-});
-
-/* =========================
-   TEST ENDPOINT - Create fake bill for testing
-   ========================= */
-app.get("/test/create-fake-bill", (req, res) => {
-    const fakePaymentId = "pay_test_" + Date.now();
-    const fakeTokenNumber = req.query.token || String(Math.floor(1000 + Math.random() * 9000));
-    const fakeAmount = parseFloat(req.query.amount) || 100;
-
-    paidBills.set(fakePaymentId, {
-        orderId: "order_test_" + Date.now(),
-        paymentId: fakePaymentId,
-        tokenNumber: fakeTokenNumber,
-        amount: fakeAmount,
-        items: ["₹50", "₹50"],
-        method: 'TEST',
-        customerName: 'Test Customer',
-        customerEmail: 'test@test.com',
-        customerPhone: '9999999999',
-        time: new Date().toLocaleTimeString('en-IN', {
-            timeZone: 'Asia/Kolkata',
-            hour12: false
-        }),
-        date: new Date().toLocaleDateString('en-IN', {
-            timeZone: 'Asia/Kolkata'
-        }),
-        timestamp: Date.now(),
-        printed: false,
-        printAttempts: 0
-    });
-
-    console.log(`🧪 TEST: Created fake bill - Token: ${fakeTokenNumber}, Amount: ₹${fakeAmount}`);
-
-    res.json({
-        success: true,
-        paymentId: fakePaymentId,
-        tokenNumber: fakeTokenNumber,
-        amount: fakeAmount,
-        message: "Fake bill created. Android should print it within 8 seconds."
-    });
-});
-
-/* =========================
-   TEST ENDPOINT - Mark bill as unprinted (for testing)
-   ========================= */
-app.post("/test/mark-unprinted", (req, res) => {
-    const { paymentId } = req.body;
-
-    if (!paymentId) {
-        return res.status(400).json({ error: "Missing paymentId" });
-    }
-
-    const bill = paidBills.get(paymentId);
-    if (bill) {
-        bill.printed = false;
-        bill.printAttempts = 0;
-        console.log(`🔄 TEST: Marked bill as unprinted - Payment: ${paymentId}, Token: ${bill.tokenNumber}`);
-        res.json({ success: true, message: "Bill marked as unprinted" });
-    } else {
-        res.status(404).json({ error: "Bill not found" });
-    }
-});
-
-app.get("/admin/bills", (req, res) => {
-    const adminToken = req.headers['x-admin-token'];
-    if (adminToken !== process.env.ADMIN_TOKEN) {
-        return res.status(401).json({ error: "Unauthorized" });
-    }
-
+// Admin endpoints - ONLY with authentication
+app.get("/admin/bills", authenticateAdmin, (req, res) => {
     const pending = Array.from(pendingTokens.values());
     const paid = Array.from(paidBills.values());
 
@@ -547,16 +566,99 @@ app.get("/admin/bills", (req, res) => {
     });
 });
 
+// Debug/Test endpoints - ONLY in development
+if (NODE_ENV === 'development') {
+    app.get("/debug/bills", (req, res) => {
+        const allBills = Array.from(paidBills.entries()).map(([paymentId, bill]) => ({
+            paymentId,
+            tokenNumber: bill.tokenNumber,
+            amount: bill.amount,
+            printed: bill.printed,
+            printAttempts: bill.printAttempts || 0,
+            timestamp: new Date(bill.timestamp).toLocaleString('en-IN')
+        }));
+
+        res.json({
+            totalBills: paidBills.size,
+            unprintedBills: allBills.filter(b => !b.printed).length,
+            bills: allBills
+        });
+    });
+
+    app.get("/test/create-fake-bill", (req, res) => {
+        const fakePaymentId = "pay_test_" + Date.now();
+        const fakeTokenNumber = sanitizeTokenNumber(req.query.token) || String(Math.floor(1000 + Math.random() * 9000));
+        const fakeAmount = validateAmount(req.query.amount || 100);
+
+        paidBills.set(fakePaymentId, {
+            orderId: "order_test_" + Date.now(),
+            paymentId: fakePaymentId,
+            tokenNumber: fakeTokenNumber,
+            amount: fakeAmount,
+            items: ["₹50", "₹50"],
+            method: 'TEST',
+            customerName: 'Test Customer',
+            customerEmail: 'test@test.com',
+            customerPhone: '9999999999',
+            time: new Date().toLocaleTimeString('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                hour12: false
+            }),
+            date: new Date().toLocaleDateString('en-IN', {
+                timeZone: 'Asia/Kolkata'
+            }),
+            timestamp: Date.now(),
+            printed: false,
+            printAttempts: 0
+        });
+
+        console.log(`🧪 TEST: Created fake bill - Token: ${fakeTokenNumber}, Amount: ₹${fakeAmount}`);
+
+        res.json({
+            success: true,
+            paymentId: fakePaymentId,
+            tokenNumber: fakeTokenNumber,
+            amount: fakeAmount,
+            message: "Fake bill created"
+        });
+    });
+}
+
+// 404 handler
+app.use((req, res) => {
+    logSecurityEvent('404_NOT_FOUND', {
+        ip: req.ip,
+        path: req.path,
+        method: req.method
+    });
+    res.status(404).json({ error: "Not found" });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+    logSecurityEvent('SERVER_ERROR', {
+        error: err.message,
+        ip: req.ip,
+        path: req.path
+    });
+    console.error('Server error:', err);
+    res.status(500).json({ error: "Internal server error" });
+});
+
 app.use(globalLimiter);
 
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`🔑 API Key: ${!!ANDROID_API_KEY}`);
-    console.log(`🔐 Webhook Secret: ${!!RAZORPAY_WEBHOOK_SECRET}`);
-    console.log(`💳 Razorpay: ${!!RAZORPAY_KEY_ID}`);
-    console.log(`📱 Payment URL: http://localhost:${PORT}/payment`);
-    console.log(`🧪 Test endpoints:`);
-    console.log(`   GET  /test/create-fake-bill?token=1234&amount=100`);
-    console.log(`   GET  /debug/bills`);
-    console.log(`   POST /test/mark-unprinted {"paymentId": "pay_xxx"}`);
+    console.log(`🔒 Environment: ${NODE_ENV}`);
+    console.log(`✅ Security features enabled`);
+    console.log(`📱 Payment URL: ${NODE_ENV === 'production' ? 'https://' : 'http://'}yourdomain.com/payment`);
+
+    // Never log actual secrets
+    console.log(`🔑 API Key: ${ANDROID_API_KEY ? '✓ Configured' : '✗ Missing'}`);
+    console.log(`🔐 Webhook Secret: ${RAZORPAY_WEBHOOK_SECRET ? '✓ Configured' : '✗ Missing'}`);
+    console.log(`💳 Razorpay: ${RAZORPAY_KEY_ID ? '✓ Configured' : '✗ Missing'}`);
+
+    if (NODE_ENV === 'development') {
+        console.log(`🧪 Debug endpoints enabled (dev mode)`);
+    }
 });

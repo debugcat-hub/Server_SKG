@@ -49,12 +49,10 @@
         /* Main Grid */
         .layout-grid {
             display: grid;
-            grid-template-columns: 1fr 350px;
+            grid-template-columns: 1fr;
             gap: 30px;
             margin-top: 20px;
         }
-
-        @media (max-width: 1024px) { .layout-grid { grid-template-columns: 1fr; } }
 
         /* MENU SECTION */
         .menu-section {
@@ -86,6 +84,8 @@
             text-align: center;
             transition: 0.3s;
             font-size: 0.95rem;
+            cursor: pointer;
+            position: relative;
         }
 
         .menu-item:hover {
@@ -94,62 +94,84 @@
             border-color: var(--accent);
         }
 
-        /* PAYMENT PANEL (Keeps your logic) */
-        .payment-panel {
-            background: rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(20px);
-            border-radius: 32px;
-            padding: 30px;
-            height: fit-content;
-            position: sticky;
-            top: 20px;
-            border: 1px solid var(--primary);
-            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+        .menu-item::after {
+            content: '₹120';
+            display: block;
+            margin-top: 8px;
+            font-weight: 700;
+            color: var(--accent);
+            font-size: 0.85rem;
         }
 
-        .token-card {
-            background: var(--primary);
-            padding: 20px;
-            border-radius: 20px;
-            text-align: center;
-            cursor: pointer;
-            margin-bottom: 15px;
-            transition: 0.3s;
+        .menu-item:active {
+            transform: translateY(-1px);
         }
 
-        .token-card:hover { transform: scale(1.05); filter: brightness(1.2); }
+        /* Success Overlay */
+        .success-message {
+            position: fixed; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%);
+            background: white; 
+            color: #111; 
+            padding: 40px; 
+            border-radius: 30px;
+            z-index: 1000; 
+            display: none; 
+            text-align: center; 
+            width: 90%; 
+            max-width: 400px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
 
-        .token-number { font-size: 1.8rem; font-weight: 800; display: block; }
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 999;
+            display: none;
+        }
 
-        .token-amount { font-weight: 600; color: #fff; background: rgba(0,0,0,0.2); padding: 5px 10px; border-radius: 10px; margin-top: 5px; display: inline-block;}
-
-        .refresh-btn {
+        .close-btn {
             width: 100%;
             padding: 15px;
             border-radius: 15px;
             border: none;
-            background: white;
+            background: var(--primary);
+            color: white;
             font-weight: 700;
             cursor: pointer;
             margin-top: 20px;
         }
 
-        /* Status UI */
-        .loading, .empty-state, .error-state { text-align: center; padding: 40px 0; }
-        .spinner { width: 40px; height: 40px; border: 3px solid #333; border-top-color: var(--primary); border-radius: 50%; animation: spin 1s infinite linear; margin: 0 auto 15px; }
-        
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        .close-btn:hover {
+            background: var(--primary-dark);
+        }
 
-        /* Success Overlay */
-        .success-message {
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: white; color: #111; padding: 40px; border-radius: 30px;
-            z-index: 1000; display: none; text-align: center; width: 90%; max-width: 400px;
+        @keyframes fadeInDown { 
+            from { opacity: 0; transform: translateY(-20px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+
+        .price-note {
+            text-align: center;
+            color: var(--accent);
+            font-weight: 600;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(245, 158, 11, 0.1);
+            border-radius: 15px;
+            border: 1px solid rgba(245, 158, 11, 0.3);
         }
     </style>
 </head>
 <body>
+
+<div class="overlay" id="overlay"></div>
 
 <div class="container">
     <header>
@@ -160,173 +182,159 @@
     <div class="layout-grid">
         <main class="menu-section">
             <h2 style="font-weight: 800; font-size: 1.8rem;">Our Menu</h2>
+            <div class="price-note">🍽️ All items ₹120 | Click any item to pay</div>
             
             <div class="category-title">Signature Combos</div>
             <div class="menu-grid">
-                <div class="menu-item">Phulka combo</div>
-                <div class="menu-item">Paratha combo</div>
+                <div class="menu-item" onclick="orderItem('Phulka combo')">Phulka combo</div>
+                <div class="menu-item" onclick="orderItem('Paratha combo')">Paratha combo</div>
             </div>
 
             <div class="category-title">Specialty Rotis & Thepla</div>
             <div class="menu-grid">
-                <div class="menu-item">Missi roti</div><div class="menu-item">Methi roti</div>
-                <div class="menu-item">Palak roti</div><div class="menu-item">Sattu roti</div>
-                <div class="menu-item">Beetroot roti</div><div class="menu-item">Ragi roti</div>
-                <div class="menu-item">Jaur roti</div><div class="menu-item">Bajra roti</div>
-                <div class="menu-item">Makai roti</div><div class="menu-item">Thepla</div>
+                <div class="menu-item" onclick="orderItem('Missi roti')">Missi roti</div>
+                <div class="menu-item" onclick="orderItem('Methi roti')">Methi roti</div>
+                <div class="menu-item" onclick="orderItem('Palak roti')">Palak roti</div>
+                <div class="menu-item" onclick="orderItem('Sattu roti')">Sattu roti</div>
+                <div class="menu-item" onclick="orderItem('Beetroot roti')">Beetroot roti</div>
+                <div class="menu-item" onclick="orderItem('Ragi roti')">Ragi roti</div>
+                <div class="menu-item" onclick="orderItem('Jaur roti')">Jaur roti</div>
+                <div class="menu-item" onclick="orderItem('Bajra roti')">Bajra roti</div>
+                <div class="menu-item" onclick="orderItem('Makai roti')">Makai roti</div>
+                <div class="menu-item" onclick="orderItem('Thepla')">Thepla</div>
             </div>
 
             <div class="category-title">Stuffed Parathas</div>
             <div class="menu-grid">
-                <div class="menu-item">Aloo paratha</div><div class="menu-item">Sattu paratha</div>
-                <div class="menu-item">Gobi paratha</div><div class="menu-item">Methi paratha</div>
-                <div class="menu-item">Paneer paratha</div><div class="menu-item">Cheese paratha</div>
-                <div class="menu-item">Mix veg paratha</div>
+                <div class="menu-item" onclick="orderItem('Aloo paratha')">Aloo paratha</div>
+                <div class="menu-item" onclick="orderItem('Sattu paratha')">Sattu paratha</div>
+                <div class="menu-item" onclick="orderItem('Gobi paratha')">Gobi paratha</div>
+                <div class="menu-item" onclick="orderItem('Methi paratha')">Methi paratha</div>
+                <div class="menu-item" onclick="orderItem('Paneer paratha')">Paneer paratha</div>
+                <div class="menu-item" onclick="orderItem('Cheese paratha')">Cheese paratha</div>
+                <div class="menu-item" onclick="orderItem('Mix veg paratha')">Mix veg paratha</div>
             </div>
 
             <div class="category-title">Puri & Bhatura</div>
             <div class="menu-grid">
-                <div class="menu-item">Normal puri</div><div class="menu-item">Chala bhatura</div>
-                <div class="menu-item">Methi puri</div><div class="menu-item">Sattu puri</div>
-                <div class="menu-item">Matar puri</div>
+                <div class="menu-item" onclick="orderItem('Normal puri')">Normal puri</div>
+                <div class="menu-item" onclick="orderItem('Chala bhatura')">Chala bhatura</div>
+                <div class="menu-item" onclick="orderItem('Methi puri')">Methi puri</div>
+                <div class="menu-item" onclick="orderItem('Sattu puri')">Sattu puri</div>
+                <div class="menu-item" onclick="orderItem('Matar puri')">Matar puri</div>
             </div>
 
             <div class="category-title">Rice Specials</div>
             <div class="menu-grid">
-                <div class="menu-item">Dal chawal</div><div class="menu-item">Chola chawal</div>
-                <div class="menu-item">Rajma chawal</div><div class="menu-item">Kadhi chawal</div>
-                <div class="menu-item">Veg pulao</div><div class="menu-item">Tawa pulao</div>
-                <div class="menu-item">Jeera rice</div><div class="menu-item">Veg biryani</div>
+                <div class="menu-item" onclick="orderItem('Dal chawal')">Dal chawal</div>
+                <div class="menu-item" onclick="orderItem('Chola chawal')">Chola chawal</div>
+                <div class="menu-item" onclick="orderItem('Rajma chawal')">Rajma chawal</div>
+                <div class="menu-item" onclick="orderItem('Kadhi chawal')">Kadhi chawal</div>
+                <div class="menu-item" onclick="orderItem('Veg pulao')">Veg pulao</div>
+                <div class="menu-item" onclick="orderItem('Tawa pulao')">Tawa pulao</div>
+                <div class="menu-item" onclick="orderItem('Jeera rice')">Jeera rice</div>
+                <div class="menu-item" onclick="orderItem('Veg biryani')">Veg biryani</div>
             </div>
 
             <div class="category-title">Tandoor & Chat</div>
             <div class="menu-grid">
-                <div class="menu-item">Tanduri roti</div><div class="menu-item">Butter naan</div>
-                <div class="menu-item">Garlic naan</div><div class="menu-item">Stuff kulcha</div>
-                <div class="menu-item">Samosa</div><div class="menu-item">Kachori</div>
-                <div class="menu-item">Pani Puri</div><div class="menu-item">Vada pav</div>
-                <div class="menu-item">Pav bhaji</div>
+                <div class="menu-item" onclick="orderItem('Tanduri roti')">Tanduri roti</div>
+                <div class="menu-item" onclick="orderItem('Butter naan')">Butter naan</div>
+                <div class="menu-item" onclick="orderItem('Garlic naan')">Garlic naan</div>
+                <div class="menu-item" onclick="orderItem('Stuff kulcha')">Stuff kulcha</div>
+                <div class="menu-item" onclick="orderItem('Samosa')">Samosa</div>
+                <div class="menu-item" onclick="orderItem('Kachori')">Kachori</div>
+                <div class="menu-item" onclick="orderItem('Pani Puri')">Pani Puri</div>
+                <div class="menu-item" onclick="orderItem('Vada pav')">Vada pav</div>
+                <div class="menu-item" onclick="orderItem('Pav bhaji')">Pav bhaji</div>
             </div>
 
             <div class="category-title">Beverages</div>
             <div class="menu-grid">
-                <div class="menu-item" style="border-color: var(--accent);">Dryfruits Lassi</div>
-                <div class="menu-item" style="border-color: var(--accent);">Dryfruits Aamrash</div>
+                <div class="menu-item" style="border-color: var(--accent);" onclick="orderItem('Dryfruits Lassi')">Dryfruits Lassi</div>
+                <div class="menu-item" style="border-color: var(--accent);" onclick="orderItem('Dryfruits Aamrash')">Dryfruits Aamrash</div>
             </div>
         </main>
-
-        <aside class="payment-panel">
-            <h3 style="margin-bottom: 20px; display: flex; justify-content: space-between;">
-                Pay Bill <span id="tokenCount" style="font-size: 0.8rem; background: var(--accent); padding: 2px 8px; border-radius: 10px;">0</span>
-            </h3>
-
-            <div id="loadingState" class="loading">
-                <div class="spinner"></div>
-                <p>Checking tokens...</p>
-            </div>
-
-            <div id="tokenGrid"></div>
-
-            <div id="emptyState" class="empty-state" style="display: none;">
-                <p style="color: #94a3b8;">No pending payments.</p>
-            </div>
-
-            <div id="errorState" class="error-state" style="display: none;">
-                <p id="errorMessage" style="color: #ef4444; font-size: 0.8rem;"></p>
-            </div>
-
-            <button class="refresh-btn" onclick="loadTokens()">🔄 Refresh Payments</button>
-            <p style="text-align: center; font-size: 0.7rem; color: #94a3b8; margin-top: 15px;">🔒 Secured by Razorpay</p>
-        </aside>
     </div>
 
     <div id="successMessage" class="success-message">
         <div style="font-size: 50px;">✅</div>
-        <h2>Payment Done</h2>
-        <div id="successToken" style="font-size: 2rem; font-weight: 800; color: var(--primary); margin: 10px 0;">#00</div>
-        <p>Your bill is printing at the counter.</p>
-        <button class="refresh-btn" style="background: var(--primary); color: white;" onclick="location.reload()">Close</button>
+        <h2>Payment Successful!</h2>
+        <div id="successItem" style="font-size: 1.5rem; font-weight: 600; color: var(--primary); margin: 15px 0;"></div>
+        <p style="color: #64748b;">Your order has been received.</p>
+        <button class="close-btn" onclick="closeSuccess()">Continue Ordering</button>
     </div>
 </div>
 
 <script>
-    /* LOGIC REMAINS UNTOUCHED AS REQUESTED */
     const API_BASE = window.location.origin;
-    
-    async function loadTokens() {
-        const loadingState = document.getElementById('loadingState');
-        const tokenGrid = document.getElementById('tokenGrid');
-        const emptyState = document.getElementById('emptyState');
-        const errorState = document.getElementById('errorState');
-        const tokenCount = document.getElementById('tokenCount');
+    const ITEM_PRICE = 120; // All items are ₹120
 
-        loadingState.style.display = 'block';
-        emptyState.style.display = 'none';
-        errorState.style.display = 'none';
-        tokenGrid.innerHTML = '';
-
+    async function orderItem(itemName) {
         try {
-            const response = await fetch(`${API_BASE}/api/pending-tokens`, { cache: 'no-cache' });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const data = await response.json();
-            
-            loadingState.style.display = 'none';
-            if (data.tokens && data.tokens.length > 0) {
-                tokenCount.textContent = data.tokens.length;
-                data.tokens.forEach(token => {
-                    const card = document.createElement('div');
-                    card.className = 'token-card';
-                    card.onclick = () => initiatePayment(token.token_number, token.amount);
-                    card.innerHTML = `
-                        <span class="token-number">#${token.token_number}</span>
-                        <span class="token-amount">Pay ₹${token.amount}</span>
-                    `;
-                    tokenGrid.appendChild(card);
-                });
-            } else {
-                emptyState.style.display = 'block';
-                tokenCount.textContent = '0';
-            }
-        } catch (error) {
-            loadingState.style.display = 'none';
-            errorState.style.display = 'block';
-            document.getElementById('errorMessage').textContent = 'Connection Error';
-        }
-    }
-
-    async function initiatePayment(tokenNumber, amount) {
-        try {
-            const response = await fetch(`${API_BASE}/api/create-order`, {
+            // Create order on backend
+            const response = await fetch(`${API_BASE}/api/create-direct-order`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token_number: tokenNumber })
+                body: JSON.stringify({ 
+                    item_name: itemName,
+                    amount: ITEM_PRICE
+                })
             });
-            const orderData = await response.json();
-            if (!response.ok) { alert(orderData.error); return; }
 
+            if (!response.ok) {
+                const errorData = await response.json();
+                alert('Error: ' + (errorData.error || 'Failed to create order'));
+                return;
+            }
+
+            const orderData = await response.json();
+
+            // Initialize Razorpay payment
             const options = {
                 key: orderData.key,
                 amount: orderData.amount,
                 currency: orderData.currency,
                 name: 'SRI KRISHNA GHAR',
-                description: `Token #${tokenNumber}`,
+                description: itemName,
                 order_id: orderData.order_id,
-                handler: function (res) { showSuccess(tokenNumber); },
-                theme: { color: '#6366f1' }
+                handler: function (response) {
+                    showSuccess(itemName);
+                },
+                prefill: {
+                    name: '',
+                    email: '',
+                    contact: ''
+                },
+                theme: { 
+                    color: '#6366f1' 
+                },
+                modal: {
+                    ondismiss: function() {
+                        console.log('Payment cancelled');
+                    }
+                }
             };
-            new Razorpay(options).open();
-        } catch (error) { alert('Error: ' + error.message); }
+
+            const razorpay = new Razorpay(options);
+            razorpay.open();
+
+        } catch (error) {
+            console.error('Payment error:', error);
+            alert('Error initiating payment: ' + error.message);
+        }
     }
 
-    function showSuccess(tokenNumber) {
-        document.getElementById('successToken').textContent = `#${tokenNumber}`;
+    function showSuccess(itemName) {
+        document.getElementById('successItem').textContent = itemName;
         document.getElementById('successMessage').style.display = 'block';
+        document.getElementById('overlay').style.display = 'block';
     }
 
-    window.onload = loadTokens;
-    setInterval(() => {
-        if (document.getElementById('successMessage').style.display === 'none') loadTokens();
-    }, 10000);
+    function closeSuccess() {
+        document.getElementById('successMessage').style.display = 'none';
+        document.getElementById('overlay').style.display = 'none';
+    }
 </script>
 </body>
 </html>

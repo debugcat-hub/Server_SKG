@@ -14,9 +14,23 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: 
+                linear-gradient(135deg, rgba(102, 126, 234, 0.95) 0%, rgba(118, 75, 162, 0.95) 100%),
+                url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><text x="50" y="100" font-size="80" opacity="0.15" fill="%23fff">🍛</text><text x="250" y="200" font-size="60" opacity="0.1" fill="%23fff">🥘</text><text x="450" y="150" font-size="70" opacity="0.12" fill="%23fff">🫓</text><text x="650" y="250" font-size="65" opacity="0.13" fill="%23fff">🍲</text><text x="850" y="180" font-size="75" opacity="0.11" fill="%23fff">🥙</text><text x="1050" y="220" font-size="60" opacity="0.14" fill="%23fff">🍚</text><text x="150" y="350" font-size="70" opacity="0.12" fill="%23fff">🧆</text><text x="350" y="420" font-size="65" opacity="0.13" fill="%23fff">🥗</text><text x="550" y="380" font-size="80" opacity="0.15" fill="%23fff">🍛</text><text x="750" y="450" font-size="60" opacity="0.1" fill="%23fff">🫔</text><text x="950" y="400" font-size="70" opacity="0.12" fill="%23fff">🍱</text><text x="100" y="550" font-size="65" opacity="0.13" fill="%23fff">🥘</text><text x="300" y="620" font-size="75" opacity="0.11" fill="%23fff">🍲</text><text x="500" y="580" font-size="60" opacity="0.14" fill="%23fff">🫓</text><text x="700" y="650" font-size="70" opacity="0.12" fill="%23fff">🥙</text><text x="900" y="600" font-size="80" opacity="0.15" fill="%23fff">🍚</text><text x="1100" y="640" font-size="65" opacity="0.13" fill="%23fff">🧆</text><text x="200" y="750" font-size="60" opacity="0.1" fill="%23fff">🥗</text><text x="400" y="780" font-size="70" opacity="0.12" fill="%23fff">🍛</text><text x="600" y="720" font-size="75" opacity="0.11" fill="%23fff">🫔</text><text x="800" y="770" font-size="65" opacity="0.13" fill="%23fff">🍱</text><text x="1000" y="740" font-size="60" opacity="0.14" fill="%23fff">🥘</text></svg>');
+            background-attachment: fixed;
+            background-size: cover;
             min-height: 100vh;
             padding: 20px;
+            animation: foodFloat 60s infinite linear;
+        }
+
+        @keyframes foodFloat {
+            0% {
+                background-position: 0% 0%, 0% 0%;
+            }
+            100% {
+                background-position: 0% 0%, 100% 100%;
+            }
         }
 
         .container {
@@ -571,7 +585,7 @@
 <script>
     const API_BASE = window.location.origin;
     const DEBUG = false;
-
+    
     function debugLog(message, data) {
         if (DEBUG) {
             console.log(`[DEBUG] ${message}`, data || '');
@@ -631,7 +645,7 @@
             console.error('Error loading tokens:', error);
             loadingState.style.display = 'none';
             errorState.style.display = 'block';
-            document.getElementById('errorMessage').textContent =
+            document.getElementById('errorMessage').textContent = 
                 'Unable to connect to the server. Please check your connection and try again.';
         }
     }
@@ -640,7 +654,7 @@
         try {
             const response = await fetch(`${API_BASE}/api/create-order`, {
                 method: 'POST',
-                headers: {
+                headers: { 
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },

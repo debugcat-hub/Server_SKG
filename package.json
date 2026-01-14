@@ -15,6 +15,5 @@
     "express-rate-limit": "^8.2.1",
     "razorpay": "^2.9.6",
     "helmet": "^8.1.0",
-    
   }
 }

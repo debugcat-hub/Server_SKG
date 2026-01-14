@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SRI KRISHNA GHAR | Payment Portal</title>
+    <title>SRI KRISHNA GHAR | Order Food Online</title>
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
@@ -33,7 +33,6 @@
             overflow-x: hidden;
         }
 
-        /* Decorative background elements */
         body::before {
             content: "";
             position: fixed;
@@ -46,11 +45,11 @@
         }
 
         .container {
-            max-width: 1100px;
+            max-width: 1200px;
             margin: 0 auto;
         }
 
-        /* Header Redesign */
+        /* Header */
         .header {
             text-align: center;
             padding: 40px 20px;
@@ -66,10 +65,6 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 15px;
         }
 
         .subtitle {
@@ -80,174 +75,153 @@
             font-weight: 600;
         }
 
-        /* Main Grid Layout */
-        .main-content {
-            display: grid;
-            grid-template-columns: 1fr 380px;
-            gap: 30px;
-        }
-
-        @media (max-width: 968px) {
-            .main-content { grid-template-columns: 1fr; }
-            .instructions-panel { order: -1; }
-        }
-
-        /* Token Section */
-        .section-header {
+        /* Category Tabs */
+        .category-tabs {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding: 0 10px;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
         }
 
-        .section-title {
-            font-size: 1.25rem;
+        .category-tab {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            padding: 12px 28px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s;
             font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
         }
 
-        .token-count {
+        .category-tab:hover, .category-tab.active {
             background: var(--primary);
-            padding: 4px 12px;
-            border-radius: 99px;
-            font-size: 0.85rem;
-            font-weight: 700;
+            border-color: var(--primary);
+            transform: translateY(-2px);
         }
 
-        .token-grid {
+        /* Food Grid */
+        .food-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 20px;
-            min-height: 300px;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
         }
 
-        /* Modern Token Card */
-        .token-card {
+        .food-card {
             background: var(--glass);
             backdrop-filter: blur(12px);
             border: 1px solid var(--glass-border);
             border-radius: 24px;
-            padding: 30px 20px;
-            text-align: center;
+            overflow: hidden;
             cursor: pointer;
             transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
             position: relative;
-            overflow: hidden;
         }
 
-        .token-card:hover {
-            transform: translateY(-10px);
-            background: rgba(255, 255, 255, 0.15);
+        .food-card:hover {
+            transform: translateY(-8px);
+            background: rgba(255, 255, 255, 0.12);
             border-color: var(--primary);
             box-shadow: 0 20px 40px rgba(0,0,0,0.3);
         }
 
-        .token-number {
-            font-size: 2.5rem;
-            font-weight: 800;
-            color: #fff;
-            margin-bottom: 5px;
-            display: block;
-        }
-
-        .token-amount {
-            font-size: 1.1rem;
-            color: var(--accent);
-            font-weight: 700;
-        }
-
-        /* Instructions Panel */
-        .instructions-panel {
-            background: var(--glass);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--glass-border);
-            border-radius: 32px;
-            padding: 35px;
-            height: fit-content;
-        }
-
-        .instructions-title {
-            font-size: 1.4rem;
-            font-weight: 700;
-            margin-bottom: 25px;
-            color: #fff;
-        }
-
-        .instruction-step {
+        .food-image {
+            width: 100%;
+            height: 180px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             display: flex;
-            gap: 20px;
-            margin-bottom: 25px;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
             position: relative;
         }
 
-        .step-number {
-            width: 36px;
-            height: 36px;
-            background: var(--primary);
-            border-radius: 12px;
+        .veg-badge, .nonveg-badge {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            width: 20px;
+            height: 20px;
+            border: 2px solid;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 800;
-            flex-shrink: 0;
-            box-shadow: 0 8px 16px rgba(99, 102, 241, 0.3);
         }
 
-        .step-title {
+        .veg-badge {
+            border-color: #10b981;
+        }
+
+        .veg-badge::after {
+            content: "";
+            width: 10px;
+            height: 10px;
+            background: #10b981;
+            border-radius: 50%;
+        }
+
+        .nonveg-badge {
+            border-color: #ef4444;
+        }
+
+        .nonveg-badge::after {
+            content: "";
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 10px solid #ef4444;
+        }
+
+        .food-content {
+            padding: 20px;
+        }
+
+        .food-name {
+            font-size: 1.3rem;
             font-weight: 700;
-            margin-bottom: 4px;
-            font-size: 1rem;
+            margin-bottom: 8px;
+            color: #fff;
         }
 
-        .step-description {
+        .food-description {
             font-size: 0.9rem;
             color: #94a3b8;
-            line-height: 1.5;
+            margin-bottom: 15px;
+            line-height: 1.4;
         }
 
-        /* Buttons */
-        .refresh-btn {
-            width: 100%;
-            background: white;
-            color: #0f172a;
+        .food-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .food-price {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .order-btn {
+            background: var(--primary);
+            color: white;
             border: none;
-            padding: 16px;
-            border-radius: 16px;
+            padding: 10px 24px;
+            border-radius: 12px;
             font-weight: 700;
             cursor: pointer;
             transition: all 0.3s;
-            margin-top: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
         }
 
-        .refresh-btn:hover {
-            transform: scale(1.02);
-            background: #f1f5f9;
+        .order-btn:hover {
+            background: var(--primary-dark);
+            transform: scale(1.05);
         }
 
-        /* Loading & States */
-        .loading {
-            text-align: center;
-            padding: 100px 0;
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 3px solid rgba(255,255,255,0.1);
-            border-top: 3px solid var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-
-        /* Success Message Overlay */
+        /* Success Message */
         .success-message {
             position: fixed;
             top: 50%;
@@ -265,18 +239,23 @@
             box-shadow: 0 0 100px rgba(0,0,0,0.5);
         }
 
-        .success-token {
-            font-size: 4rem;
+        .success-item {
+            font-size: 2rem;
             font-weight: 800;
             color: var(--primary);
             margin: 20px 0;
         }
 
-        /* Animations */
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-        @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
+        .close-btn {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 20px;
         }
 
         .footer {
@@ -287,99 +266,39 @@
             padding-bottom: 30px;
         }
 
-        /* States UI */
-        .empty-state, .error-state {
-            background: var(--glass);
-            border-radius: 32px;
-            padding: 60px 20px;
-            text-align: center;
-            border: 1px dashed var(--glass-border);
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-
-        .empty-icon { font-size: 3rem; margin-bottom: 15px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <header class="header">
-        <div class="logo">SRI KRISHNA GHAR</div>
-        <div class="subtitle">Quick Digital Payments</div>
+        <div class="logo">🍛 SRI KRISHNA GHAR</div>
+        <div class="subtitle">Authentic Indian Cuisine</div>
     </header>
 
-    <div id="loadingState" class="loading">
-        <div class="spinner"></div>
-        <p>Fetching active orders...</p>
+    <div class="category-tabs">
+        <div class="category-tab active" onclick="filterCategory('all')">All Items</div>
+        <div class="category-tab" onclick="filterCategory('starters')">Starters</div>
+        <div class="category-tab" onclick="filterCategory('mains')">Main Course</div>
+        <div class="category-tab" onclick="filterCategory('breads')">Breads</div>
+        <div class="category-tab" onclick="filterCategory('beverages')">Beverages</div>
     </div>
 
-    <div id="mainContent" class="main-content" style="display: none;">
-        <div class="tokens-section">
-            <div class="section-header">
-                <div class="section-title">Active Tokens</div>
-                <div class="token-count" id="tokenCount">0</div>
-            </div>
-            <div id="tokenGrid" class="token-grid">
-                </div>
-        </div>
-
-        <aside class="instructions-panel">
-            <div class="instructions-title">Payment Guide</div>
-            
-            <div class="instruction-step">
-                <div class="step-number">1</div>
-                <div class="step-content">
-                    <div class="step-title">Verify Token</div>
-                    <div class="step-description">Find your token number printed on the counter slip.</div>
-                </div>
-            </div>
-
-            <div class="instruction-step">
-                <div class="step-number">2</div>
-                <div class="step-content">
-                    <div class="step-title">Select Card</div>
-                    <div class="step-description">Tap on your specific token card to initiate payment.</div>
-                </div>
-            </div>
-
-            <div class="instruction-step">
-                <div class="step-number">3</div>
-                <div class="step-content">
-                    <div class="step-title">Instant Bill</div>
-                    <div class="step-description">Your receipt prints at the counter immediately after success.</div>
-                </div>
-            </div>
-
-            <div class="refresh-section" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--glass-border);">
-                <button class="refresh-btn" onclick="loadTokens()">
-                    <span>🔄</span> Refresh List
-                </button>
-            </div>
-        </aside>
-    </div>
-
-    <div id="emptyState" class="empty-state" style="display: none;">
-        <div class="empty-icon">🍽️</div>
-        <h3>All Caught Up!</h3>
-        <p style="color: #94a3b8; margin: 10px 0 25px;">There are no tokens awaiting payment at the moment.</p>
-        <button class="refresh-btn" style="max-width: 200px; margin: 0 auto;" onclick="loadTokens()">Check Again</button>
-    </div>
-
-    <div id="errorState" class="error-state" style="display: none;">
-        <div class="empty-icon">⚠️</div>
-        <h3 style="color: #ef4444;">Connection Issue</h3>
-        <p id="errorMessage" style="color: #94a3b8; margin: 10px 0 25px;"></p>
-        <button class="refresh-btn" style="max-width: 200px; margin: 0 auto;" onclick="loadTokens()">Retry Connection</button>
-    </div>
+    <div id="foodGrid" class="food-grid"></div>
 
     <div id="successMessage" class="success-message">
         <div style="font-size: 50px;">✅</div>
-        <h2 style="margin-top:10px">Payment Received</h2>
-        <div class="success-token" id="successToken">-</div>
+        <h2 style="margin-top:10px">Order Successful!</h2>
+        <div class="success-item" id="successItem">-</div>
         <p style="line-height: 1.6; color: #475569;">
-            Your transaction was successful.<br>
-            <strong>Your bill is printing at the counter now.</strong>
+            Your payment was successful.<br>
+            <strong>Your order will be prepared shortly.</strong>
         </p>
-        <button class="refresh-btn" style="background: var(--primary); color: white; margin-top: 30px;" onclick="location.reload()">Done</button>
+        <button class="close-btn" onclick="closeSuccess()">Continue Ordering</button>
     </div>
 
     <footer class="footer">
@@ -388,71 +307,84 @@
 </div>
 
 <script>
-    /* LOGIC REMAINS UNTOUCHED */
     const API_BASE = window.location.origin;
-    const DEBUG = false;
-    
-    function debugLog(message, data) {
-        if (DEBUG) console.log(`[DEBUG] ${message}`, data || '');
+
+    const menuItems = [
+        // Starters
+        { id: 1, name: "Paneer Tikka", price: 180, category: "starters", emoji: "🧀", type: "veg", description: "Grilled cottage cheese marinated in spices" },
+        { id: 2, name: "Chicken Tikka", price: 220, category: "starters", emoji: "🍗", type: "nonveg", description: "Tender chicken pieces in tandoori marinade" },
+        { id: 3, name: "Samosa", price: 40, category: "starters", emoji: "🥟", type: "veg", description: "Crispy pastry filled with spiced potatoes" },
+        { id: 4, name: "Spring Rolls", price: 120, category: "starters", emoji: "🌯", type: "veg", description: "Crunchy rolls with vegetable filling" },
+        
+        // Main Course
+        { id: 5, name: "Butter Chicken", price: 280, category: "mains", emoji: "🍛", type: "nonveg", description: "Creamy tomato-based chicken curry" },
+        { id: 6, name: "Paneer Butter Masala", price: 220, category: "mains", emoji: "🍲", type: "veg", description: "Rich cottage cheese in creamy gravy" },
+        { id: 7, name: "Dal Makhani", price: 180, category: "mains", emoji: "🥘", type: "veg", description: "Black lentils cooked overnight with spices" },
+        { id: 8, name: "Chicken Biryani", price: 250, category: "mains", emoji: "🍚", type: "nonveg", description: "Fragrant rice with tender chicken pieces" },
+        { id: 9, name: "Veg Biryani", price: 200, category: "mains", emoji: "🍱", type: "veg", description: "Aromatic rice with mixed vegetables" },
+        { id: 10, name: "Mutton Rogan Josh", price: 320, category: "mains", emoji: "🥩", type: "nonveg", description: "Kashmiri mutton curry with aromatic spices" },
+        
+        // Breads
+        { id: 11, name: "Butter Naan", price: 50, category: "breads", emoji: "🫓", type: "veg", description: "Soft flatbread brushed with butter" },
+        { id: 12, name: "Garlic Naan", price: 60, category: "breads", emoji: "🧄", type: "veg", description: "Naan topped with garlic and herbs" },
+        { id: 13, name: "Tandoori Roti", price: 30, category: "breads", emoji: "🥖", type: "veg", description: "Whole wheat flatbread from tandoor" },
+        { id: 14, name: "Laccha Paratha", price: 50, category: "breads", emoji: "🥐", type: "veg", description: "Layered flatbread with crispy texture" },
+        
+        // Beverages
+        { id: 15, name: "Masala Chai", price: 30, category: "beverages", emoji: "☕", type: "veg", description: "Traditional Indian spiced tea" },
+        { id: 16, name: "Mango Lassi", price: 80, category: "beverages", emoji: "🥤", type: "veg", description: "Sweet yogurt drink with mango" },
+        { id: 17, name: "Fresh Lime Soda", price: 50, category: "beverages", emoji: "🍋", type: "veg", description: "Refreshing lime with soda water" },
+        { id: 18, name: "Buttermilk", price: 40, category: "beverages", emoji: "🥛", type: "veg", description: "Spiced yogurt drink" }
+    ];
+
+    let currentCategory = 'all';
+
+    function renderMenu() {
+        const grid = document.getElementById('foodGrid');
+        const filtered = currentCategory === 'all' 
+            ? menuItems 
+            : menuItems.filter(item => item.category === currentCategory);
+
+        grid.innerHTML = filtered.map(item => `
+            <div class="food-card" onclick="orderItem(${item.id})">
+                <div class="food-image">
+                    <div class="${item.type}-badge"></div>
+                    <span>${item.emoji}</span>
+                </div>
+                <div class="food-content">
+                    <div class="food-name">${item.name}</div>
+                    <div class="food-description">${item.description}</div>
+                    <div class="food-footer">
+                        <div class="food-price">₹${item.price}</div>
+                        <button class="order-btn" onclick="event.stopPropagation(); orderItem(${item.id})">Order Now</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
     }
 
-    async function loadTokens() {
-        const loadingState = document.getElementById('loadingState');
-        const mainContent = document.getElementById('mainContent');
-        const tokenGrid = document.getElementById('tokenGrid');
-        const emptyState = document.getElementById('emptyState');
-        const errorState = document.getElementById('errorState');
-        const tokenCount = document.getElementById('tokenCount');
-
-        loadingState.style.display = 'block';
-        mainContent.style.display = 'none';
-        emptyState.style.display = 'none';
-        errorState.style.display = 'none';
-
-        try {
-            const response = await fetch(`${API_BASE}/api/pending-tokens`, {
-                method: 'GET',
-                headers: { 'Accept': 'application/json' },
-                cache: 'no-cache'
-            });
-
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-            const data = await response.json();
-            loadingState.style.display = 'none';
-
-            if (data.tokens && Array.isArray(data.tokens) && data.tokens.length > 0) {
-                mainContent.style.display = 'grid';
-                tokenGrid.innerHTML = '';
-                tokenCount.textContent = data.tokens.length;
-
-                data.tokens.forEach((token, index) => {
-                    const card = document.createElement('div');
-                    card.className = 'token-card';
-                    card.style.animationDelay = `${index * 0.1}s`;
-                    card.onclick = () => initiatePayment(token.token_number, token.amount);
-                    card.innerHTML = `
-                        <div class="token-number">#${token.token_number}</div>
-                        <div class="token-amount">₹${token.amount}</div>
-                    `;
-                    tokenGrid.appendChild(card);
-                });
-            } else {
-                emptyState.style.display = 'block';
-            }
-        } catch (error) {
-            loadingState.style.display = 'none';
-            errorState.style.display = 'block';
-            document.getElementById('errorMessage').textContent = 'Unable to reach the server. Please check your internet.';
-        }
+    function filterCategory(category) {
+        currentCategory = category;
+        document.querySelectorAll('.category-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        event.target.classList.add('active');
+        renderMenu();
     }
 
-    async function initiatePayment(tokenNumber, amount) {
+    async function orderItem(itemId) {
+        const item = menuItems.find(i => i.id === itemId);
+        if (!item) return;
+
         try {
-            const response = await fetch(`${API_BASE}/api/create-order`, {
+            // Create order with Razorpay
+            const response = await fetch(`${API_BASE}/api/create-direct-order`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({ token_number: tokenNumber })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    item_name: item.name,
+                    amount: item.price
+                })
             });
 
             const orderData = await response.json();
@@ -466,16 +398,12 @@
                 amount: orderData.amount,
                 currency: orderData.currency,
                 name: 'SRI KRISHNA GHAR',
-                description: `Token #${tokenNumber}`,
+                description: item.name,
                 order_id: orderData.order_id,
                 handler: function (response) {
-                    showSuccess(tokenNumber);
-                    setTimeout(() => {
-                        if (document.getElementById('successMessage').style.display === 'block') loadTokens();
-                    }, 2000);
+                    showSuccess(item.name);
                 },
-                theme: { color: '#6366f1' },
-                modal: { ondismiss: function() { loadTokens(); } }
+                theme: { color: '#6366f1' }
             };
 
             const razorpay = new Razorpay(options);
@@ -485,21 +413,16 @@
         }
     }
 
-    function showSuccess(tokenNumber) {
-        document.getElementById('mainContent').style.display = 'none';
-        document.getElementById('emptyState').style.display = 'none';
-        document.getElementById('errorState').style.display = 'none';
-        document.getElementById('successToken').textContent = `#${tokenNumber}`;
+    function showSuccess(itemName) {
+        document.getElementById('successItem').textContent = itemName;
         document.getElementById('successMessage').style.display = 'block';
     }
 
-    window.onload = loadTokens;
-    setInterval(() => {
-        if (document.getElementById('successMessage').style.display === 'none' &&
-            document.getElementById('errorState').style.display === 'none') {
-            loadTokens();
-        }
-    }, 10000);
+    function closeSuccess() {
+        document.getElementById('successMessage').style.display = 'none';
+    }
+
+    window.onload = renderMenu;
 </script>
 </body>
 </html>

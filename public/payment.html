@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SRI KRISHNA GHAR - Payment</title>
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <style>
@@ -88,18 +88,10 @@
             font-weight: 600;
         }
 
-        .empty-state {
+        .empty-state, .error-state {
             background: white;
             border-radius: 20px;
             padding: 60px 40px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-
-        .error-state {
-            background: white;
-            border-radius: 20px;
-            padding: 40px;
             text-align: center;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
@@ -109,11 +101,15 @@
             margin-bottom: 20px;
         }
 
-        .empty-title {
+        .empty-title, .error-title {
             font-size: 24px;
             color: #333;
             margin-bottom: 10px;
             font-weight: 600;
+        }
+
+        .error-title {
+            color: #f44336;
         }
 
         .empty-text {
@@ -122,24 +118,18 @@
             line-height: 1.6;
         }
 
-        .error-title {
-            font-size: 24px;
-            color: #f44336;
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-
         .error-details {
             background: #f5f5f5;
             padding: 15px;
             border-radius: 10px;
             margin: 20px 0;
             font-family: monospace;
-            font-size: 14px;
+            font-size: 12px;
             text-align: left;
             color: #333;
             max-height: 200px;
             overflow-y: auto;
+            word-wrap: break-word;
         }
 
         .loading {
@@ -258,22 +248,14 @@
             opacity: 0.8;
         }
 
-        .status-indicator {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 8px;
-        }
-
-        .status-online {
-            background: #4caf50;
-            box-shadow: 0 0 10px #4caf50;
-        }
-
-        .status-offline {
-            background: #f44336;
-            box-shadow: 0 0 10px #f44336;
+        .debug-info {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            padding: 10px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 12px;
+            font-family: monospace;
         }
     </style>
 </head>
@@ -287,7 +269,6 @@
     <div id="loadingState" class="loading">
         <div class="spinner"></div>
         <div>Loading pending tokens...</div>
-        <div style="margin-top: 10px; font-size: 12px; opacity: 0.8;" id="loadingStatus"></div>
     </div>
 
     <div id="tokenGrid" class="token-grid" style="display: none;"></div>
@@ -304,10 +285,8 @@
 
     <div id="errorState" class="error-state" style="display: none;">
         <div class="empty-icon">⚠️</div>
-        <div class="error-title">Connection Error</div>
-        <div class="empty-text" id="errorMessage">
-            Unable to connect to the server.
-        </div>
+        <div class="error-title">Error Loading Tokens</div>
+        <div class="empty-text" id="errorMessage"></div>
         <div class="error-details" id="errorDetails"></div>
         <button class="refresh-btn" onclick="loadTokens()">🔄 Retry</button>
     </div>
@@ -328,41 +307,34 @@
     </div>
 
     <div class="footer">
-        🔒 Secure payment powered by Razorpay<br>
-        <span id="serverStatus" style="font-size: 12px; margin-top: 5px; display: inline-block;">
-            <span class="status-indicator status-offline"></span>
-            Checking server...
-        </span>
+        🔒 Secure payment powered by Razorpay
+    </div>
+    
+    <!-- Debug info - remove in production -->
+    <div class="debug-info" id="debugInfo" style="display: none;">
+        <div><strong>Debug Info:</strong></div>
+        <div id="debugContent"></div>
     </div>
 </div>
 
 <script>
-    const API_BASE = 'https://server-skg.onrender.com';
-
-    async function checkServerHealth() {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-            const response = await fetch(`${API_BASE}/health`, {
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-
-            if (response.ok) {
-                document.getElementById('serverStatus').innerHTML = `
-                    <span class="status-indicator status-online"></span>
-                    Server online
-                `;
-                return true;
+    // Use relative URLs since we're on the same domain
+    const API_BASE = window.location.origin;
+    
+    // Enable debug mode (set to false in production)
+    const DEBUG = true;
+    
+    function debugLog(message, data) {
+        if (DEBUG) {
+            console.log(`[DEBUG] ${message}`, data || '');
+            const debugInfo = document.getElementById('debugInfo');
+            const debugContent = document.getElementById('debugContent');
+            debugInfo.style.display = 'block';
+            const timestamp = new Date().toLocaleTimeString();
+            debugContent.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            if (data) {
+                debugContent.innerHTML += `<div style="padding-left: 20px;">${JSON.stringify(data, null, 2)}</div>`;
             }
-            return false;
-        } catch (error) {
-            document.getElementById('serverStatus').innerHTML = `
-                <span class="status-indicator status-offline"></span>
-                Server offline (${error.message})
-            `;
-            return false;
         }
     }
 
@@ -371,7 +343,9 @@
         const tokenGrid = document.getElementById('tokenGrid');
         const emptyState = document.getElementById('emptyState');
         const errorState = document.getElementById('errorState');
-        const loadingStatus = document.getElementById('loadingStatus');
+
+        debugLog('Starting loadTokens()');
+        debugLog('API Base URL', API_BASE);
 
         // Hide all states
         loadingState.style.display = 'block';
@@ -379,32 +353,39 @@
         emptyState.style.display = 'none';
         errorState.style.display = 'none';
 
-        loadingStatus.textContent = 'Connecting to server...';
-
         try {
-            // Add timeout to fetch
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-
-            loadingStatus.textContent = 'Fetching pending tokens...';
-
-            const response = await fetch(`${API_BASE}/api/pending-tokens`, {
-                signal: controller.signal,
+            const url = `${API_BASE}/api/pending-tokens`;
+            debugLog('Fetching from URL', url);
+            
+            const response = await fetch(url, {
+                method: 'GET',
                 headers: {
                     'Accept': 'application/json'
-                }
+                },
+                cache: 'no-cache'
             });
 
-            clearTimeout(timeoutId);
+            debugLog('Response status', response.status);
+            debugLog('Response headers', Object.fromEntries(response.headers.entries()));
 
             if (!response.ok) {
-                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                debugLog('Non-JSON response received', text.substring(0, 200));
+                throw new Error('Server returned non-JSON response');
             }
 
             const data = await response.json();
+            debugLog('Received data', data);
+
             loadingState.style.display = 'none';
 
-            if (data.tokens && data.tokens.length > 0) {
+            if (data.tokens && Array.isArray(data.tokens) && data.tokens.length > 0) {
+                debugLog('Displaying tokens', data.tokens.length);
                 tokenGrid.style.display = 'grid';
                 tokenGrid.innerHTML = '';
 
@@ -420,62 +401,54 @@
 
                     tokenGrid.appendChild(card);
                 });
-
-                await checkServerHealth();
             } else {
+                debugLog('No tokens found');
                 emptyState.style.display = 'block';
-                await checkServerHealth();
             }
 
         } catch (error) {
+            debugLog('Error caught', error.toString());
             console.error('Error loading tokens:', error);
+            
             loadingState.style.display = 'none';
             errorState.style.display = 'block';
-
-            let errorMsg = 'Unable to connect to the server.';
-            let errorDetail = '';
-
-            if (error.name === 'AbortError') {
-                errorMsg = 'Server is taking too long to respond.';
-                errorDetail = 'The server might be sleeping (Render free tier). Please wait 30 seconds and try again.';
-            } else if (error.message.includes('Failed to fetch')) {
-                errorMsg = 'Cannot reach the server.';
-                errorDetail = `Server URL: ${API_BASE}\nError: Network request failed\n\nPossible causes:\n- Server is offline\n- CORS blocking the request\n- Server is waking up (wait 30s)`;
-            } else {
-                errorMsg = error.message;
-                errorDetail = `Full error: ${error.toString()}\nServer: ${API_BASE}`;
-            }
-
-            document.getElementById('errorMessage').textContent = errorMsg;
-            document.getElementById('errorDetails').textContent = errorDetail;
-
-            await checkServerHealth();
+            
+            document.getElementById('errorMessage').textContent = error.message;
+            document.getElementById('errorDetails').textContent = 
+                `URL: ${API_BASE}/api/pending-tokens\n` +
+                `Error: ${error.toString()}\n` +
+                `Type: ${error.name}\n\n` +
+                `Check browser console (F12) for more details.`;
         }
     }
 
     async function initiatePayment(tokenNumber, amount) {
+        debugLog('Initiating payment', { tokenNumber, amount });
+        
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-            const response = await fetch(`${API_BASE}/api/create-order`, {
+            const url = `${API_BASE}/api/create-order`;
+            debugLog('Creating order at', url);
+            
+            const response = await fetch(url, {
                 method: 'POST',
-                headers: {
+                headers: { 
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
-                body: JSON.stringify({ token_number: tokenNumber }),
-                signal: controller.signal
+                body: JSON.stringify({ token_number: tokenNumber })
             });
 
-            clearTimeout(timeoutId);
+            debugLog('Order response status', response.status);
 
             const orderData = await response.json();
+            debugLog('Order data received', orderData);
 
             if (!response.ok) {
                 alert(orderData.error || orderData.message || 'Failed to create order');
                 return;
             }
+
+            debugLog('Opening Razorpay checkout');
 
             const options = {
                 key: orderData.key,
@@ -485,6 +458,7 @@
                 description: `Token #${tokenNumber}`,
                 order_id: orderData.order_id,
                 handler: function (response) {
+                    debugLog('Payment success', response);
                     showSuccess(tokenNumber);
                 },
                 theme: {
@@ -492,7 +466,7 @@
                 },
                 modal: {
                     ondismiss: function() {
-                        console.log('Payment cancelled by user');
+                        debugLog('Payment cancelled by user');
                     }
                 }
             };
@@ -501,12 +475,9 @@
             razorpay.open();
 
         } catch (error) {
+            debugLog('Payment error', error.toString());
             console.error('Payment error:', error);
-            if (error.name === 'AbortError') {
-                alert('Server timeout. Please try again in a moment.');
-            } else {
-                alert('Failed to initiate payment. Please try again.');
-            }
+            alert('Failed to initiate payment: ' + error.message);
         }
     }
 
@@ -518,19 +489,23 @@
         document.getElementById('successMessage').style.display = 'block';
     }
 
-    // Check server health on load
-    window.onload = async () => {
-        await checkServerHealth();
-        await loadTokens();
+    // Load tokens on page load
+    window.onload = () => {
+        debugLog('Page loaded, window.location', {
+            origin: window.location.origin,
+            href: window.location.href
+        });
+        loadTokens();
     };
 
-    // Auto refresh every 15 seconds (instead of 10)
+    // Auto refresh every 10 seconds
     setInterval(() => {
         if (document.getElementById('successMessage').style.display === 'none' &&
             document.getElementById('errorState').style.display === 'none') {
+            debugLog('Auto-refreshing tokens');
             loadTokens();
         }
-    }, 15000);
+    }, 10000);
 </script>
 </body>
 </html>

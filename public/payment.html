@@ -322,7 +322,7 @@
     const API_BASE = window.location.origin;
     
     // Enable debug mode (set to false in production)
-    const DEBUG = false;
+    const DEBUG = true;
     
     function debugLog(message, data) {
         if (DEBUG) {
@@ -460,6 +460,12 @@
                 handler: function (response) {
                     debugLog('Payment success', response);
                     showSuccess(tokenNumber);
+                    // Reload tokens after successful payment to remove paid token
+                    setTimeout(() => {
+                        if (document.getElementById('successMessage').style.display === 'block') {
+                            loadTokens();
+                        }
+                    }, 2000);
                 },
                 theme: {
                     color: '#667eea'
@@ -467,6 +473,8 @@
                 modal: {
                     ondismiss: function() {
                         debugLog('Payment cancelled by user');
+                        // Reload tokens in case payment was actually successful
+                        loadTokens();
                     }
                 }
             };
